@@ -6,7 +6,7 @@ plt.switch_backend('agg')
 import matplotlib.gridspec as gridspec
 import os
 
-mb_size = 32
+mb_size = 256
 X_dim = 784
 z_dim = 10
 h_dim = 128
@@ -122,7 +122,6 @@ i = 0
 for it in range(10000000):
     for _ in range(5):
         X_mb, _ = mnist.train.next_batch(mb_size)
-
         _, D_loss_curr, _ = sess.run(
             [D_solver, D_loss, clip_D],
             feed_dict={X: X_mb}
@@ -139,7 +138,7 @@ for it in range(10000000):
 
         if it % 1000 == 0:
             samples = sess.run(G_sample, feed_dict={X: X_mb})
-            fig = plot(np.append(X_mb, samples, axis=0))
+            fig = plot(np.append(X_mb[:32], samples[:32], axis=0))
             plt.savefig('out/{}.png'
                         .format(str(i).zfill(3)), bbox_inches='tight')
             i += 1
