@@ -97,12 +97,13 @@ decoder_op = decoder(encoder_op)
 
 # Prediction
 G_sample = decoder_op
+G_true = X
 
 D_real = discriminator(X)
 D_fake = discriminator(G_sample)
 
 D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
-G_loss = -tf.reduce_mean(D_fake)
+G_loss = -tf.reduce_mean(D_fake) + tf.reduce_mean(tf.pow(G_true - G_sample, 2))
 
 D_solver = (tf.train.RMSPropOptimizer(learning_rate=1e-4)
             .minimize(-D_loss, var_list=theta_D))
