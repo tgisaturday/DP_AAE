@@ -119,7 +119,7 @@ if not os.path.exists('out/'):
 
 i = 0
 
-for it in range(1000000):
+for it in range(10000000):
     for _ in range(5):
         X_mb, _ = mnist.train.next_batch(mb_size)
 
