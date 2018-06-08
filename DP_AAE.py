@@ -89,8 +89,9 @@ def discriminator(x):
     return out
 
 #G_sample = generator(z)
-encoder_op = encoder(X)
-decoder_op = decoder(encoder_op)
+z = encoder(X)
+noise = tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=0.2, dtype=tf.float32) 
+decoder_op = decoder(z+noise)
 
 # Prediction
 G_sample = decoder_op
