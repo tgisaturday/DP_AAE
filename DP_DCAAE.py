@@ -72,7 +72,9 @@ def autoencoder(x):
     # %%
     # store the latent representation
     z = current_input
-    noise = tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=0.02, dtype=tf.float32) 
+    in_dim = z.get_shape().as_list()[3]
+    xavier_stddev = 1. / tf.sqrt(in_dim / 2.)
+    noise = tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=xavier_stddev, dtype=tf.float32) 
     z += noise
     encoder.reverse()
     shapes.reverse()
