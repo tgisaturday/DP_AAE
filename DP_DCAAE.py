@@ -6,8 +6,6 @@ plt.switch_backend('agg')
 import matplotlib.gridspec as gridspec
 import os
 import math
-from libs.activations import lrelu
-from libs.utils import corrupt
 
 initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
@@ -139,7 +137,7 @@ D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
 A_loss = tf.reduce_mean(tf.pow(G_true_flat -G_sample, 2))
 G_loss = -tf.reduce_mean(D_fake)
 
-optimizer = tf.train.AdamOptimizer(learning_rate=5e-6)
+optimizer = tf.train.AdamOptimizer(learning_rate=5e-5)
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 global_step = tf.Variable(0, name="global_step", trainable=False) 
 
