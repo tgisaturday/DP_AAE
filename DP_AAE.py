@@ -49,9 +49,6 @@ D_b2 = tf.Variable(tf.zeros(shape=[1]))
 
 theta_D = [D_W1, D_W2, D_b1, D_b2]
 
-
-z = tf.placeholder(tf.float32, shape=[None, z_dim])
-
 weights = {
     'encoder_h1': tf.Variable(tf.random_normal([num_input, num_hidden_1])),
     'encoder_h2': tf.Variable(tf.random_normal([num_hidden_1, num_hidden_2])),
@@ -103,13 +100,14 @@ D_real = discriminator(X)
 D_fake = discriminator(G_sample)
 
 D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
-G_loss = -tf.reduce_mean(D_fake) + tf.reduce_mean(tf.pow(G_true - G_sample, 2))
-
-D_solver = (tf.train.RMSPropOptimizer(learning_rate=1e-4)
+A_loss = tf.reduce_mean(tf.pow(G_true - G_sample, 2))
+G_loss = -tf.reduce_mean(D_fake)
+D_solver = (tf.train.AdamOptimizer(learning_rate=1e-4)
             .minimize(-D_loss, var_list=theta_D))
-G_solver = (tf.train.RMSPropOptimizer(learning_rate=1e-4)
+G_solver = (tf.train.AdamOptimizer(learning_rate=1e-4)
             .minimize(G_loss))
-
+A_solver = (tf.train.AdamOptimizer(learning_rate=1e-4)
+            .minimize(A_loss))
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D]
 
 sess = tf.Session()
@@ -127,15 +125,18 @@ for it in range(10000000):
             [D_solver, D_loss, clip_D],
             feed_dict={X: X_mb}
         )
-
+    _, A_loss_curr = sess.run(
+        [A_solver, A_loss],
+        feed_dict={X: X_mb}
+    )
     _, G_loss_curr = sess.run(
         [G_solver, G_loss],
         feed_dict={X: X_mb}
     )
 
     if it % 100 == 0:
-        print('Iter: {}; D loss: {:.4}; G_loss: {:.4}'
-              .format(it, D_loss_curr, G_loss_curr))
+        print('Iter: {}; D loss: {:.4}; A_loss: {:.4}; G_loss: {:.4}'
+              .format(it, D_loss_curr, A_loss_curr, G_loss_curr))
 
         if it % 1000 == 0:
             samples = sess.run(G_sample, feed_dict={X: X_mb})
