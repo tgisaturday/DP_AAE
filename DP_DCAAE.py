@@ -159,13 +159,16 @@ D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
 A_loss = tf.reduce_mean(tf.pow(G_true_flat -G_sample, 2))
 G_loss = -tf.reduce_mean(D_fake)
 
-optimizer = tf.train.AdamOptimizer(learning_rate=1e-5)
-optimizer_ae = tf.train.AdamOptimizer(learning_rate=1e-4)
-update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 global_step = tf.Variable(0, name="global_step", trainable=False) 
+#num_batches_per_epoch = int((len(x_train)-1)/256) + 1
+learning_rate = tf.train.exponential_decay(1e-3, global_step,200, 0.95, staircase=True)
+
+optimizer = tf.train.AdamOptimizer(learning_rate=5e-6)
+optimizer_ae = tf.train.AdamOptimizer(learning_rate)
+update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
 D_gradients, D_variables = zip(*optimizer.compute_gradients(-D_loss))
-D_gradients, _ = tf.clip_by_global_norm(D_gradients, 5.0)
+D_gradients = [tf.clip_by_value(grad, -0.01,0.01) for grad in D_gradients if grad is not None]
 G_gradients, G_variables = zip(*optimizer.compute_gradients(G_loss))
 G_gradients, _ = tf.clip_by_global_norm(G_gradients, 5.0)
 A_gradients, A_variables = zip(*optimizer_ae.compute_gradients(A_loss))
@@ -185,11 +188,11 @@ with tf.Session() as sess:
     i = 0
 
     for it in range(10000000):
-        #for _ in range(10):
-        X_mb, _ = mnist.train.next_batch(mb_size)
+        for _ in range(5):
+            X_mb, _ = mnist.train.next_batch(mb_size)
+            _, D_loss_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb})
         _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb})
         _, G_loss_curr = sess.run([G_solver, G_loss],feed_dict={X: X_mb})
-        _, D_loss_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb})
 
         if it % 100 == 0:
             print('Iter: {}; D_loss: {:.4}; A_loss: {:.4}; G_loss: {:.4};'.format(it, D_loss_curr, A_loss_curr,G_loss_curr))
