@@ -117,13 +117,35 @@ def discriminator(x):
     conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
     h2 = tf.nn.leaky_relu(conv2, 0.2)
     
-    h2 = tf.reshape(h2, [-1,128])
-    h2 = tf.layers.dense(h2, 1024,kernel_initializer = tf.truncated_normal_initializer(mean = 0.0, stddev=0.1))
+    h2 = tf.layers.flatten(h2)
+    h2 = tf.layers.dense(h2, 1024,kernel_initializer = tf.truncated_normal_initializer(mean = 0.0, stddev=0.02))
     h2 = tf.contrib.layers.batch_norm(h2,center=True, scale=True,is_training=True)
     h3 = tf.nn.leaky_relu(h2, 0.2)
     d =  tf.layers.dense(h3,1)
     return d
 
+'''
+def xavier_init(size):
+    in_dim = size[0]
+    xavier_stddev = 1. / tf.sqrt(in_dim / 2.)
+    return tf.random_normal(shape=size, stddev=xavier_stddev)
+
+D_W1 = tf.Variable(xavier_init([X_dim, h_dim]))
+D_b1 = tf.Variable(tf.zeros(shape=[h_dim]))
+
+D_W2 = tf.Variable(xavier_init([h_dim, 1]))
+D_b2 = tf.Variable(tf.zeros(shape=[1]))
+def discriminator(x):
+    if len(x.get_shape()) == 2:
+        x_tensor = x
+    elif len(x.get_shape()) == 4:
+        x_tensor = tf.layers.flatten(x)
+    else:
+        raise ValueError('Unsupported input dimensions')
+    D_h1 = tf.nn.relu(tf.matmul(x_tensor, D_W1) + D_b1)
+    out = tf.matmul(D_h1, D_W2) + D_b2
+    return out
+'''
 
 # Prediction
 G_sample = autoencoder(X)
@@ -137,7 +159,8 @@ D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
 A_loss = tf.reduce_mean(tf.pow(G_true_flat -G_sample, 2))
 G_loss = -tf.reduce_mean(D_fake)
 
-optimizer = tf.train.AdamOptimizer(learning_rate=5e-5)
+optimizer = tf.train.AdamOptimizer(learning_rate=1e-5)
+optimizer_ae = tf.train.AdamOptimizer(learning_rate=1e-4)
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 global_step = tf.Variable(0, name="global_step", trainable=False) 
 
@@ -145,7 +168,7 @@ D_gradients, D_variables = zip(*optimizer.compute_gradients(-D_loss))
 D_gradients, _ = tf.clip_by_global_norm(D_gradients, 5.0)
 G_gradients, G_variables = zip(*optimizer.compute_gradients(G_loss))
 G_gradients, _ = tf.clip_by_global_norm(G_gradients, 5.0)
-A_gradients, A_variables = zip(*optimizer.compute_gradients(A_loss))
+A_gradients, A_variables = zip(*optimizer_ae.compute_gradients(A_loss))
 A_gradients, _ = tf.clip_by_global_norm(A_gradients, 5.0)
 
 with tf.control_dependencies(update_ops):
@@ -162,13 +185,14 @@ with tf.Session() as sess:
     i = 0
 
     for it in range(10000000):
-        for _ in range(5):
-            X_mb, _ = mnist.train.next_batch(mb_size)
-            _, D_loss_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb})
+        #for _ in range(10):
+        X_mb, _ = mnist.train.next_batch(mb_size)
         _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb})
         _, G_loss_curr = sess.run([G_solver, G_loss],feed_dict={X: X_mb})
+        _, D_loss_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb})
+
         if it % 100 == 0:
-            print('Iter: {}; D_loss: {:.4}; A_loss: {:.4}; G_loss: {:.4}'.format(it, D_loss_curr, A_loss_curr, G_loss_curr))
+            print('Iter: {}; D_loss: {:.4}; A_loss: {:.4}; G_loss: {:.4};'.format(it, D_loss_curr, A_loss_curr,G_loss_curr))
 
         if it % 1000 == 0:
             samples = sess.run(G_sample, feed_dict={X: X_mb})
