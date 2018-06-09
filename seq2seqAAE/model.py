@@ -18,7 +18,7 @@ class seq2CNN(object):
         self.targets = tf.placeholder(tf.int32, [None, None], name='targets')
         self.text_length = tf.placeholder(tf.int32, (None,), name='text_length')
         self.summary_length = tf.placeholder(tf.int32, (None,), name='summary_length')
-        self.seq_lambda = tf.placeholder(tf.float32, name='seq_lambda')     
+        self.seq_lambda = tf.placeholder(tf.float32, name='seq_lambda') 
         self.is_training = tf.placeholder(tf.bool, name='is_training')
 
         self.D_vars = []
@@ -83,7 +83,8 @@ class seq2CNN(object):
                 self.D_vars.append(W)
                 b = tf.get_variable('b', [1], initializer=tf.constant_initializer(0.1))
                 self.D_vars.append(b)
-                self.scores = tf.nn.xw_plus_b(h_drop, W, b, name='scores')
+                self.D_logit_fake = tf.nn.xw_plus_b(h_drop, W, b, name='scores')
+
                 
         with tf.variable_scope('textCNN', reuse=True):
             inference_output = enc_embed_input
@@ -112,18 +113,20 @@ class seq2CNN(object):
                 W = tf.get_variable('W', shape=[len(filter_sizes)*num_filters, 1],
                                     initializer=initializer,regularizer = regularizer)
                 b = tf.get_variable('b', [1], initializer=tf.constant_initializer(0.1))
-                self.inference_scores = tf.nn.xw_plus_b(inference_h_drop, W, b, name='inference_scores')          
-               
+                self.D_logit_real = tf.nn.xw_plus_b(inference_h_drop, W, b, name='inference_scores')          
+            
         # Calculate mean cross-entropy loss
         with tf.name_scope('loss'):            
             masks = tf.sequence_mask(self.summary_length, max_summary_length, dtype=tf.float32, name='masks')
             seq_loss = tf.contrib.seq2seq.sequence_loss(training_logits[0].rnn_output,self.targets,masks)
-            self.D_loss = tf.reduce_mean(self.inference_scores) - tf.reduce_mean(self.scores)
-            self.G_loss = self.seq_lambda*tf.reduce_mean(seq_loss) - tf.reduce_mean(self.scores)
-            self.seq_loss = seq_loss
+            D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_logit_real, labels=tf.ones_like(self.D_logit_real)))
+            D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_logit_fake, labels=tf.zeros_like(self.D_logit_fake)))
+            self.D_loss = D_loss_real + D_loss_fake
+            self.G_loss = self.seq_lambda*tf.reduce_mean(seq_loss) + D_loss_fake
+            self.A_loss = tf.reduce_mean(seq_loss)
             tf.summary.scalar('D_loss',self.D_loss)
             tf.summary.scalar('G_loss',self.G_loss)
-            tf.summary.scalar('seq_loss',self.seq_loss)
+            tf.summary.scalar('A_loss',self.A_loss)
 
         self.merged = tf.summary.merge_all()    
         

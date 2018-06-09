@@ -36,7 +36,7 @@ initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
 X = tf.placeholder(tf.float32, shape=[None, X_dim])
-
+theta_G = []
 def autoencoder(x):
     input_shape=[None, 784]
     n_filters=[1, 10, 10, 10]
@@ -64,7 +64,9 @@ def autoencoder(x):
         shapes.append(current_input.get_shape().as_list())
         W = tf.Variable(tf.random_uniform([filter_sizes[layer_i],filter_sizes[layer_i],n_input, n_output],-1.0 / math.sqrt(n_input),
                                           1.0 / math.sqrt(n_input)))
+        theta_G.append(W)
         b = tf.Variable(tf.zeros([n_output]))
+        theta_G.append(b)
         encoder.append(W)
         output = tf.nn.leaky_relu(tf.add(tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME'), b))
         current_input = output
@@ -82,6 +84,7 @@ def autoencoder(x):
     for layer_i, shape in enumerate(shapes):
         W = encoder[layer_i]
         b = tf.Variable(tf.zeros([W.get_shape().as_list()[2]]))
+        theta_G.append(b)
         output = tf.nn.leaky_relu(tf.add(
             tf.nn.conv2d_transpose(
                 current_input, W,
@@ -137,18 +140,6 @@ def discriminator(x):
     return d
 
 
-'''
-D_W1 = tf.Variable(xavier_init([X_dim, h_dim]))
-D_b1 = tf.Variable(tf.zeros(shape=[h_dim]))
-
-D_W2 = tf.Variable(xavier_init([h_dim, 1]))
-D_b2 = tf.Variable(tf.zeros(shape=[1]))
-
-    D_h1 = tf.nn.relu(tf.matmul(x_tensor, D_W1) + D_b1)
-    out = tf.matmul(D_h1, D_W2) + D_b2
-    return out
-'''
-
 # Prediction
 G_sample = autoencoder(X)
 G_true = X
@@ -167,8 +158,8 @@ clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D]
 
 with tf.control_dependencies(update_ops):
     D_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(-D_loss, var_list=theta_D)
-    G_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(G_loss)
-    A_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(A_loss)
+    G_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(G_loss, var_list=theta_G)
+    A_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(A_loss, var_list=theta_G)
 
 
 if not os.path.exists('dc_out/'):

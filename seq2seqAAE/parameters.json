@@ -10,5 +10,5 @@
     "num_filters": 64,
     "embedding_dim": 200,
     "dropout_keep_prob": 0.5,
-    "seq_lambda": 2.0
+    "seq_lambda": 1.5
 }
