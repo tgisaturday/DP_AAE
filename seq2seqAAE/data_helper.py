@@ -90,30 +90,32 @@ def load_data(filename,dataset_name,max_length):
     """Load sentences and labels"""
     if dataset_name == 'ag_news' or dataset_name == 'dbpedia' or dataset_name == 'sogou_news' or dataset_name == 'amazon_review_full' or dataset_name == 'amazon_review_polarity' :
         df = pd.read_csv(filename, names=['label', 'title', 'text'], dtype={'title': object,'text': object})
-        selected = ['text']
+        selected = ['label','text']
         non_selected = list(set(df.columns) - set(selected))
         df = df.drop(non_selected, axis=1) # Drop non selected columns 
-        df = df.reindex(np.random.permutation(df.index)) # Shuffle the dataframe
+        y_raw = df['label'].tolist()
         x_raw = df['text'].apply(lambda x: clean_str(x,max_length-1)).tolist()
         target_raw = df['text'].apply(lambda x: gen_target(x,max_length)).tolist()
         
     elif dataset_name == 'yelp_review_full' or dataset_name == 'yelp_review_polarity':
         df = pd.read_csv(filename, names=['label','text'], dtype={'text': object})
-        selected = ['text']
+        selected = ['label','text']
         non_selected = list(set(df.columns) - set(selected))
-        df = df.drop(non_selected, axis=1) # Drop non selected columns        
+        df = df.drop(non_selected, axis=1) # Drop non selected columns  
+        y_raw = df['label'].tolist()     
         x_raw = df['text'].apply(lambda x: clean_str(x,max_length-1)).tolist()
         target_raw = df['text'].apply(lambda x: gen_target(x,max_length)).tolist()         
             
     elif dataset_name == 'yahoo_answers':
         df = pd.read_csv(filename, names=['label', 'title', 'content','answer'], dtype={'title': object,'answer': object,'content': object})
-        selected = ['content','answer']     
+        selected = ['label','content','answer']     
         non_selected = list(set(df.columns) - set(selected))
         df = df.drop(non_selected, axis=1) # Drop non selected columns        
+        y_raw = df['label'].tolist()
         df['temp'] = df[['content','answer']].apply(lambda x: ' '.join(str(v) for v in x), axis=1)
         x_raw = df['temp'].apply(lambda x: clean_str(x,max_length-1)).tolist()
         target_raw = df['temp'].apply(lambda x: gen_target(x,max_length)).tolist()         
-    return x_raw,target_raw
+    return x_raw, y_raw, target_raw
 
 def batch_iter(data, batch_size, num_epochs, shuffle=True):
     """Iterate the data batch by batch"""

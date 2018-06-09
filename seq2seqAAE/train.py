@@ -70,7 +70,7 @@ def train_cnn(dataset_name):
   
     if not os.path.exists('out/'):
         os.makedirs('out/')
-    x_raw, target_raw = data_helper.load_data(dataset,dataset_name, max_document_length)
+    x_raw, y_raw, target_raw = data_helper.load_data(dataset,dataset_name, max_document_length)
     word_counts = {}
     count_words(word_counts, x_raw)        
     logging.info("Size of Vocabulary: {}".format(len(word_counts)))
@@ -114,6 +114,7 @@ def train_cnn(dataset_name):
     target_int = pad_sentence_batch(vocab_to_int,int_summaries)
     
     x = np.array(x_int)
+    y = np.array(y_raw)
     target = np.array(target_int) 
     t = np.array(list(len(x) for x in x_int))
     s = np.array(list(len(x) for x in x_int))
@@ -123,6 +124,7 @@ def train_cnn(dataset_name):
     #Step 2: shuffle the train set and split the train set into train and dev sets
     shuffle_indices = np.random.permutation(np.arange(len(t)))
     x_train = x[shuffle_indices]
+    y_train = y[shuffle_indices]
     target_train = target[shuffle_indices]
     t_train= t[shuffle_indices]
     s_train = s[shuffle_indices]
@@ -272,26 +274,25 @@ def train_cnn(dataset_name):
                     print('Saved model at {} at step {}'.format(path, current_step))
                 
             #Step 5: predict x_test (batch by batch)\
-            test_batches = data_helper.batch_iter(list(zip(x_train,target_train,t_train,s_train)), params['batch_size'],1)
-            total_test_correct = 0
-            watch_rnn_output = True
-            start = time.time()
+            test_batches = data_helper.batch_iter(list(zip(x,y,target,t,s)), params['batch_size'],1)
             fp = open('final_result.txt','w')
+            fp_applied = open('{}_dp_applied.csv'.format(dataset_name),'w')
             for test_batch in test_batches:
-                x_test_batch,target_test_batch, t_test_batch,s_test_batch = zip(*test_batch)
+                x_test_batch,y_test_batch,target_test_batch, t_test_batch,s_test_batch = zip(*test_batch)
                 G_samples = dev_step(x_test_batch,target_test_batch,t_test_batch,s_test_batch,seq_lambda)
                 Original = []
-                for text in x_train_batch:
+                for text in x_test_batch:
                     pad = vocab_to_int['PAD']
                     result =  " ".join([int_to_vocab[j] for j in text if j != pad])
                     Original.append(result)
-
-                    for i in range(len(G_samples)):
-                        print('[Original]',file=fp)
-                        print(Original[i],file=fp)
-                        print('[Generated]',file=fp)
-                        print(G_sample[i],file=fp)
+                for i in range(len(G_samples)):
+                    print('[Original]',file=fp)
+                    print(Original[i],file=fp)
+                    print('[Generated]',file=fp)
+                    print(G_samples[i],file=fp)
+                    print('"{}","{}"'.format(y_test_batch[i],G_samples[i]),file=fp_applied)
             fp.close()
+            fp_applied.close()
 
 if __name__ == '__main__':
     # python3 train.py ./data/consumer_complaints.csv.zip ./parameters.json
