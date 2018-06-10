@@ -99,10 +99,11 @@ G_true = X
 
 D_real = discriminator(X)
 D_fake = discriminator(G_sample)
+reg_loss = tf.nn.l2_loss(D_W2)
 
-D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
+D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)+ tf.reduce_mean(reg_loss)
 A_loss = tf.reduce_mean(tf.pow(G_true - G_sample, 2))
-G_loss = -tf.reduce_mean(D_fake)
+G_loss = -tf.reduce_mean(D_fake)+ tf.reduce_mean(reg_loss)
 D_solver = (tf.train.AdamOptimizer(learning_rate=1e-4)
             .minimize(-D_loss, var_list=theta_D))
 G_solver = (tf.train.AdamOptimizer(learning_rate=1e-4)

@@ -146,11 +146,11 @@ G_true = X
 
 D_real = discriminator(X)
 D_fake = discriminator(G_sample)
-
+reg_loss = tf.nn.l2_loss(D_fc2)
 G_true_flat = tf.reshape(X, [-1,28,28,1])
-D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
+D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake) + tf.reduce_mean(reg_loss)
 A_loss = tf.reduce_mean(tf.pow(G_true_flat -G_sample, 2))
-G_loss = -tf.reduce_mean(D_fake)
+G_loss = -tf.reduce_mean(D_fake)+ tf.reduce_mean(reg_loss)
 
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
