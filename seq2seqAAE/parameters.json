@@ -5,7 +5,7 @@
     "filter_sizes": "3,4,5",
     "learning_rate": 0.0001,
     "gradient_noise_scale": 1.0,
-    "epsilon": 0.1,
+    "epsilon": 0.00000001,
     "min_frequency": 20,
     "rnn_size": 256,
     "num_filters": 64,

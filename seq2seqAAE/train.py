@@ -213,9 +213,11 @@ def train_cnn(dataset_name):
             G_grad, G_var = zip(*G_optimizer.compute_gradients(cnn.G_loss))
             gradient_noise_scale = params['gradient_noise_scale']
             D_noised_grad = add_scaled_noise_to_gradients(list(zip(D_grad, D_var)), gradient_noise_scale = gradient_noise_scale)
-            D_grad,_ = tf.clip_by_global_norm(D_noised_grad, 5.0)
+            #D_grad, _ = tf.clip_by_global_norm(D_noised_grad, 5.0)
+            D_grad = D_noised_grad
             G_noised_grad = add_scaled_noise_to_gradients(list(zip(G_grad, G_var)), gradient_noise_scale = gradient_noise_scale)
-            G_grad,_ = tf.clip_by_global_norm(G_noised_grad, 5.0)
+            #G_grad,_ = tf.clip_by_global_norm(G_noised_grad, 5.0)
+            G_grad = G_noised_grad
             with tf.control_dependencies(update_ops):
                 train_D = D_optimizer.apply_gradients(zip(D_grad, D_var), global_step=global_step)
                 train_G = G_optimizer.apply_gradients(zip(G_grad, G_var), global_step=global_step)
