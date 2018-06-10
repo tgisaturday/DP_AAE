@@ -200,29 +200,18 @@ def train_cnn(dataset_name):
                 vocab_to_int = vocab_to_int,
                 num_filters=params['num_filters'],
                 vocab_size=len(vocab_to_int),
-                embedding_size=params['embedding_dim']
+                embedding_size=params['embedding_dim'],
+                l2_reg_lambda=params['l2_reg_lambda']
                 )
             global_step = tf.Variable(0, name="global_step", trainable=False)            
             num_batches_per_epoch = int((len(x_train)-1)/params['batch_size']) + 1
-            learning_rate = params['learning_rate']
             epsilon = params['epsilon']
-            D_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate,epsilon=epsilon)
-            G_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate,epsilon=epsilon)
+            learning_rate = tf.train.exponential_decay(params['learning_rate'], global_step,num_batches_per_epoch, 0.95, staircase=True)
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-            D_grad, D_var = zip(*D_optimizer.compute_gradients(cnn.D_loss))
-            G_grad, G_var = zip(*G_optimizer.compute_gradients(cnn.G_loss))
-            gradient_noise_scale = params['gradient_noise_scale']
-            D_noised_grad = add_scaled_noise_to_gradients(list(zip(D_grad, D_var)), gradient_noise_scale = gradient_noise_scale)
-            #D_grad, _ = tf.clip_by_global_norm(D_noised_grad, 5.0)
-            D_grad = D_noised_grad
-            G_noised_grad = add_scaled_noise_to_gradients(list(zip(G_grad, G_var)), gradient_noise_scale = gradient_noise_scale)
-            #G_grad,_ = tf.clip_by_global_norm(G_noised_grad, 5.0)
-            G_grad = G_noised_grad
+
             with tf.control_dependencies(update_ops):
-                train_D = D_optimizer.apply_gradients(zip(D_grad, D_var), global_step=global_step)
-                train_G = G_optimizer.apply_gradients(zip(G_grad, G_var), global_step=global_step)
-                #train_D = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(cnn.D_loss, global_step=global_step)
-                #train_G = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(cnn.G_loss,global_step=global_step)
+                train_D = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(cnn.D_loss, global_step=global_step)
+                train_G = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(cnn.G_loss,global_step=global_step)
                 #train_A = tf.train.AdamOptimizer(learning_rate=1e-3).minimize(cnn.A_loss,global_step=global_step)
             #clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in cnn.D_vars]
             

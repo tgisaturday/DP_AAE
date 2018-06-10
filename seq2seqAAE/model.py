@@ -10,7 +10,7 @@ rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 regularizer = tf.contrib.layers.l2_regularizer(1e-2)
 
 class seq2CNN(object):  
-    def __init__(self,embeddings,filter_sizes, max_summary_length, rnn_size, vocab_to_int, num_filters, vocab_size, embedding_size):
+    def __init__(self,embeddings,filter_sizes, max_summary_length, rnn_size, vocab_to_int, num_filters, vocab_size, embedding_size,l2_reg_lambda=0.0):
         
         self.input_x = tf.placeholder(tf.int32, [None, None], name='input_x')            
         self.dropout_keep_prob = tf.placeholder(tf.float32, name='dropout_keep_prob')
@@ -20,7 +20,7 @@ class seq2CNN(object):
         self.summary_length = tf.placeholder(tf.int32, (None,), name='summary_length')
         self.seq_lambda = tf.placeholder(tf.float32, name='seq_lambda') 
         self.is_training = tf.placeholder(tf.bool, name='is_training')
-
+        l2_loss = tf.constant(0.0)
         self.D_vars = []
         with tf.device('/cpu:0'),tf.name_scope('embedding'):
             #embeddings = tf.get_variable(name='embedding_W', shape=[vocab_size, embedding_size],initializer=rand_uniform)
@@ -69,7 +69,7 @@ class seq2CNN(object):
                     conv = tf.nn.conv2d(cnn_input, W, strides=[1, 1, 1, 1], padding='VALID', name='conv')
                     #Apply nonlinearity
                     h = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=self.is_training)
-                    h = tf.nn.relu(h, name='relu')
+                    h = tf.nn.leaky_relu(h,0.2, name='relu')
                     # Maxpooling over the outputs
                     pooled = tf.nn.max_pool(h, ksize=[1, max_summary_length - filter_size + 1, 1, 1], strides=[1, 1, 1, 1],
                                        padding='VALID', name='pool')                
@@ -80,11 +80,13 @@ class seq2CNN(object):
             with tf.variable_scope('output'):
                 h_drop = tf.nn.dropout(h_pool_flat, self.dropout_keep_prob)
                 W = tf.get_variable('W', shape=[len(filter_sizes)*num_filters, 1],
-                                    initializer=initializer,regularizer = regularizer)
+                                    initializer=initializer)
                 self.D_vars.append(W)
                 b = tf.get_variable('b', [1], initializer=tf.constant_initializer(0.1))
                 self.D_vars.append(b)
                 self.D_logit_fake = tf.nn.xw_plus_b(h_drop, W, b, name='scores')
+                l2_loss += tf.nn.l2_loss(W)
+                l2_loss += tf.nn.l2_loss(b)
 
                 
         with tf.variable_scope('textCNN', reuse=True):
@@ -101,7 +103,7 @@ class seq2CNN(object):
                     conv = tf.nn.conv2d(cnn_input, W, strides=[1, 1, 1, 1], padding='VALID', name='conv')
                     #Apply nonlinearity
                     h = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=self.is_training)
-                    h = tf.nn.relu(h, name='relu')
+                    h = tf.nn.leaky_relu(h,0.2, name='relu')
                     # Maxpooling over the outputs
                     pooled = tf.nn.max_pool(h, ksize=[1, max_summary_length - filter_size + 1, 1, 1], strides=[1, 1, 1, 1],
                                        padding='VALID', name='pool')                
@@ -112,18 +114,20 @@ class seq2CNN(object):
             with tf.variable_scope('output'):
                 inference_h_drop = tf.nn.dropout(inference_h_pool_flat, self.dropout_keep_prob)
                 W = tf.get_variable('W', shape=[len(filter_sizes)*num_filters, 1],
-                                    initializer=initializer,regularizer = regularizer)
+                                    initializer=initializer)
                 b = tf.get_variable('b', [1], initializer=tf.constant_initializer(0.1))
                 self.D_logit_real = tf.nn.xw_plus_b(inference_h_drop, W, b, name='inference_scores')          
-            
+                l2_loss += tf.nn.l2_loss(W)
+                l2_loss += tf.nn.l2_loss(b)            
         # Calculate mean cross-entropy loss
         with tf.name_scope('loss'):            
+            regularization_losses = l2_reg_lambda * l2_loss
             masks = tf.sequence_mask(self.summary_length, max_summary_length, dtype=tf.float32, name='masks')
             seq_loss = tf.contrib.seq2seq.sequence_loss(training_logits[0].rnn_output,self.targets,masks)
             D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_logit_real, labels=tf.ones_like(self.D_logit_real)))
             D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_logit_fake, labels=tf.zeros_like(self.D_logit_fake)))
-            self.D_loss = D_loss_real + D_loss_fake
-            self.G_loss = self.seq_lambda*tf.reduce_mean(seq_loss) + D_loss_fake
+            self.D_loss = D_loss_real + D_loss_fake + tf.reduce_mean(regularization_losses)
+            self.G_loss = self.seq_lambda*tf.reduce_mean(seq_loss) + D_loss_fake + tf.reduce_mean(regularization_losses)
             self.A_loss = tf.reduce_mean(seq_loss)
             tf.summary.scalar('D_loss',self.D_loss)
             tf.summary.scalar('G_loss',self.G_loss)
