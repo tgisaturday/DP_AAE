@@ -58,6 +58,24 @@ def exponential_lambda_decay(seq_lambda, global_step, decay_steps, decay_rate, s
         p = math.floor(p)
     
     return seq_lambda * math.pow(decay_rate, p)
+def add_scaled_noise_to_gradients(grads_and_vars, gradient_noise_scale, sparse_grads=False):
+    if not isinstance(grads_and_vars, list):
+        raise ValueError('`grads_and_vars` must be a list.')
+
+    gradients, variables = zip(*grads_and_vars)
+    noisy_gradients = []
+    for gradient in gradients:
+        if gradient is None:
+            noisy_gradients.append(None)
+            continue
+        if isinstance(gradient, tf.IndexedSlices):
+            gradient_shape = gradient.dense_shape
+        else:
+            gradient_shape = gradient.get_shape()
+        noise = tf.truncated_normal(gradient_shape) * gradient_noise_scale
+        noisy_gradients.append(gradient + noise)
+
+    return noisy_gradients
 
 def train_cnn(dataset_name):
     """Step 0: load sentences, labels, and training parameters"""
@@ -83,29 +101,29 @@ def train_cnn(dataset_name):
     # (https://github.com/commonsense/conceptnet-numberbatch)
     embeddings_index = {}
     with open('dataset/embeddings/numberbatch-en.txt', encoding='utf-8') as f: 
-      for line in f:
-        values = line.split(' ')
-        word = values[0]
-        embedding = np.asarray(values[1:], dtype='float32')
-        embeddings_index[word] = embedding
+        for line in f:
+            values = line.split(' ')
+            word = values[0]
+            embedding = np.asarray(values[1:], dtype='float32')
+            embeddings_index[word] = embedding
     print('Word embeddings:', len(embeddings_index))
     # Find the number of words that are missing from CN, and are used more than our threshold.
     missing_words = 0
-    threshold = 20
+    threshold = params['min_frequency']
     for word, count in word_counts.items():
-      if count > threshold:
-        if word not in embeddings_index:
-            missing_words += 1
-            missing_ratio = round(missing_words/len(word_counts),4)*100
+        if count > threshold:
+            if word not in embeddings_index:
+                missing_words += 1
+                missing_ratio = round(missing_words/len(word_counts),4)*100
     print("Number of words missing from CN:", missing_words)
-    print("Percent of words that are missing from vocabulary: {}%".format(missing_ratio))
+    print("Percent of words that are missing from vocabulary: {0:.2f}%".format(missing_ratio))
 
     vocab_to_int = {}
     value = 0
     for word, count in word_counts.items():
-      if count >= threshold or word in embeddings_index:
-        vocab_to_int[word] = value
-        value += 1
+        if count >= threshold or word in embeddings_index:
+            vocab_to_int[word] = value
+            value += 1
 
     # Special tokens that will be added to our vocab
     codes = ["UNK","PAD","EOS","GO"]   
@@ -188,12 +206,21 @@ def train_cnn(dataset_name):
             global_step = tf.Variable(0, name="global_step", trainable=False)            
             num_batches_per_epoch = int((len(x_train)-1)/params['batch_size']) + 1
             epsilon=params['epsilon']
-
+            learning_rate = params['learning_rate']
+            D_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+            G_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-            
+            D_grad, D_var = zip(*D_optimizer.compute_gradients(cnn.D_loss))
+            G_grad, G_var = zip(*G_optimizer.compute_gradients(cnn.G_loss))
+            D_noised_grad = add_scaled_noise_to_gradients(list(zip(D_grad, D_var)), gradient_noise_scale = 4.0)
+            D_grad,_ = tf.clip_by_global_norm(D_noised_grad, 5.0)
+            G_noised_grad = add_scaled_noise_to_gradients(list(zip(G_grad, G_var)), gradient_noise_scale = 4.0)
+            G_grad,_ = tf.clip_by_global_norm(G_noised_grad, 5.0)
             with tf.control_dependencies(update_ops):
-                train_D = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(cnn.D_loss, global_step=global_step)
-                train_G = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(cnn.G_loss,global_step=global_step)
+                train_D = D_optimizer.apply_gradients(zip(D_grad, D_var), global_step=global_step)
+                train_G = G_optimizer.apply_gradients(zip(G_grad, G_var), global_step=global_step)
+                #train_D = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(cnn.D_loss, global_step=global_step)
+                #train_G = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(cnn.G_loss,global_step=global_step)
                 #train_A = tf.train.AdamOptimizer(learning_rate=1e-3).minimize(cnn.A_loss,global_step=global_step)
             #clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in cnn.D_vars]
             
@@ -268,7 +295,7 @@ def train_cnn(dataset_name):
                 G_samples = []
                 for example in examples:
                     pad = vocab_to_int['PAD']
-                    result =  " ".join([int_to_vocab[j] for j in example if j != pad])
+                    result =  " ".join([int_to_vocab[j] for j in example[1:] if j != pad])
                     G_samples.append(result)
                 return G_samples
 
