@@ -10,7 +10,7 @@ rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 regularizer = tf.contrib.layers.l2_regularizer(1e-2)
 
 class seq2CNN(object):  
-    def __init__(self,filter_sizes, max_summary_length, rnn_size, vocab_to_int, num_filters, vocab_size, embedding_size):
+    def __init__(self,embeddings,filter_sizes, max_summary_length, rnn_size, vocab_to_int, num_filters, vocab_size, embedding_size):
         
         self.input_x = tf.placeholder(tf.int32, [None, None], name='input_x')            
         self.dropout_keep_prob = tf.placeholder(tf.float32, name='dropout_keep_prob')
@@ -23,7 +23,8 @@ class seq2CNN(object):
 
         self.D_vars = []
         with tf.device('/cpu:0'),tf.name_scope('embedding'):
-            embeddings = tf.get_variable(name='embedding_W', shape=[vocab_size, embedding_size],initializer=rand_uniform)
+            #embeddings = tf.get_variable(name='embedding_W', shape=[vocab_size, embedding_size],initializer=rand_uniform)
+            embeddings=embeddings
             enc_embed_input = tf.nn.embedding_lookup(embeddings, self.input_x)
             embedding_size = embedding_size
 

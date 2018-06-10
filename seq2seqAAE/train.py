@@ -73,12 +73,40 @@ def train_cnn(dataset_name):
     x_raw, y_raw, target_raw = data_helper.load_data(dataset,dataset_name, max_document_length)
     word_counts = {}
     count_words(word_counts, x_raw)        
-    logging.info("Size of Vocabulary: {}".format(len(word_counts)))
+    print("Size of Vocabulary: {}".format(len(word_counts)))
 
-    vocab_processor = learn.preprocessing.VocabularyProcessor(max_document_length,min_frequency=params['min_frequency'])
-    vocab_processor.fit_transform(x_raw)
-    vocab_to_int = vocab_processor.vocabulary_._mapping
+    #vocab_processor = learn.preprocessing.VocabularyProcessor(max_document_length,min_frequency=params['min_frequency'])
+    #vocab_processor.fit_transform(x_raw)
+    #vocab_to_int = vocab_processor.vocabulary_._mapping
     
+    # Load Conceptnet Numberbatch's (CN) embeddings, similar to GloVe, but probably better 
+    # (https://github.com/commonsense/conceptnet-numberbatch)
+    embeddings_index = {}
+    with open('dataset/embeddings/numberbatch-en.txt', encoding='utf-8') as f: 
+      for line in f:
+        values = line.split(' ')
+        word = values[0]
+        embedding = np.asarray(values[1:], dtype='float32')
+        embeddings_index[word] = embedding
+    print('Word embeddings:', len(embeddings_index))
+    # Find the number of words that are missing from CN, and are used more than our threshold.
+    missing_words = 0
+    threshold = 20
+    for word, count in word_counts.items():
+      if count > threshold:
+        if word not in embeddings_index:
+            missing_words += 1
+            missing_ratio = round(missing_words/len(word_counts),4)*100
+    print("Number of words missing from CN:", missing_words)
+    print("Percent of words that are missing from vocabulary: {}%".format(missing_ratio))
+
+    vocab_to_int = {}
+    value = 0
+    for word, count in word_counts.items():
+      if count >= threshold or word in embeddings_index:
+        vocab_to_int[word] = value
+        value += 1
+
     # Special tokens that will be added to our vocab
     codes = ["UNK","PAD","EOS","GO"]   
 
@@ -97,8 +125,17 @@ def train_cnn(dataset_name):
     print("Percent of words we will use: {0:.2f}%".format(usage_ratio))
     
 
-    # Apply convert_to_ints to clean_summaries and clean_texts
-    word_count = 0
+    embedding_dim = 300
+    vocab_size = len(vocab_to_int)
+    word_embedding_matrix = np.zeros((vocab_size, embedding_dim), dtype=np.float32) 
+    for word, i in vocab_to_int.items():
+        if word in embeddings_index:      
+            word_embedding_matrix[i] = embeddings_index[word]
+        else:
+            new_embedding = np.array(np.random.uniform(-1.0, 1.0, embedding_dim))
+            embeddings_index[word] = new_embedding    
+            word_embedding_matrix[i] = new_embeddingword_count = 0
+    word_count= 0
     unk_count = 0
     int_summaries, word_count, unk_count = convert_to_ints(target_raw,vocab_to_int, word_count, unk_count)
     int_texts, word_count, unk_count = convert_to_ints(x_raw,vocab_to_int, word_count, unk_count, eos=True) 
@@ -139,6 +176,7 @@ def train_cnn(dataset_name):
 
         with sess.as_default():
             cnn = seq2CNN(
+                embeddings=word_embedding_matrix,
                 filter_sizes=filter_sizes,
                 max_summary_length=max_document_length,
                 rnn_size=params['rnn_size'],
@@ -235,7 +273,7 @@ def train_cnn(dataset_name):
                 return G_samples
 
             # Save the word_to_id map since predict.py needs it
-            vocab_processor.save(os.path.join(out_dir, "vocab.pickle"))
+            #vocab_processor.save(os.path.join(out_dir, "vocab.pickle"))
 
             sess.run(tf.global_variables_initializer())
 
