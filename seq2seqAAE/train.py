@@ -79,11 +79,10 @@ def add_scaled_noise_to_gradients(grads_and_vars, gradient_noise_scale, sparse_g
 
 def train_cnn(dataset_name):
     """Step 0: load sentences, labels, and training parameters"""
-    dataset = './dataset/'+dataset_name+'_csv/train.csv'
+    dataset = './dataset/'+dataset_name+'_csv/test.csv'
     parameter_file = "./parameters.json"
     params = json.loads(open(parameter_file).read())
     max_document_length = params['max_length']
-    learning_rate = params['learning_rate']
     filter_sizes = list(int(x) for x in params['filter_sizes'].split(','))
   
     if not os.path.exists('out/'):
@@ -205,10 +204,10 @@ def train_cnn(dataset_name):
                 )
             global_step = tf.Variable(0, name="global_step", trainable=False)            
             num_batches_per_epoch = int((len(x_train)-1)/params['batch_size']) + 1
-            epsilon=params['epsilon']
             learning_rate = params['learning_rate']
-            D_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-            G_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+            epsilon = params['epsilon']
+            D_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate,epsilon=epsilon)
+            G_optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate,epsilon=epsilon)
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             D_grad, D_var = zip(*D_optimizer.compute_gradients(cnn.D_loss))
             G_grad, G_var = zip(*G_optimizer.compute_gradients(cnn.G_loss))
@@ -292,7 +291,6 @@ def train_cnn(dataset_name):
                     cnn.seq_lambda: seq_lambda,                    
                     cnn.is_training: False}
                 summary, step, examples = sess.run([cnn.merged,global_step,cnn.training_logits],feed_dict)
-
                 G_samples = []
                 for example in examples:
                     pad = vocab_to_int['PAD']
