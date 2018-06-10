@@ -79,7 +79,7 @@ def add_scaled_noise_to_gradients(grads_and_vars, gradient_noise_scale, sparse_g
 
 def train_cnn(dataset_name):
     """Step 0: load sentences, labels, and training parameters"""
-    dataset = './dataset/'+dataset_name+'_csv/test.csv'
+    dataset = './dataset/'+dataset_name+'_csv/train.csv'
     parameter_file = "./parameters.json"
     params = json.loads(open(parameter_file).read())
     max_document_length = params['max_length']
