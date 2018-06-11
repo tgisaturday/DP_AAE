@@ -32,7 +32,8 @@ class seq2CNN(object):
         with tf.name_scope('seq2seq'):
             batch_size = tf.reshape(self.batch_size, [])
             enc_output, enc_state = encoding_layer(rnn_size, self.text_length, enc_embed_input, self.dropout_keep_prob)
-            
+            noise = tf.random_normal(shape=tf.shape(enc_output), mean=0.0, stddev=0.2, dtype=tf.float32) 
+            enc_output += noise
             dec_input = process_encoding_input(self.targets, vocab_to_int, batch_size)
             dec_embed_input = tf.nn.embedding_lookup(embeddings, dec_input)
             training_logits = decoding_layer(dec_embed_input,
