@@ -10,7 +10,7 @@ rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 regularizer = tf.contrib.layers.l2_regularizer(1e-2)
 
 class seq2CNN(object):  
-    def __init__(self,embeddings,filter_sizes, max_summary_length, rnn_size, vocab_to_int, num_filters, vocab_size, embedding_size,l2_reg_lambda=0.0):
+    def __init__(self,embeddings,filter_sizes, max_summary_length, rnn_size, vocab_to_int, num_filters, vocab_size, embedding_size,z_noise_stddev,l2_reg_lambda):
         
         self.input_x = tf.placeholder(tf.int32, [None, None], name='input_x')            
         self.dropout_keep_prob = tf.placeholder(tf.float32, name='dropout_keep_prob')
@@ -32,7 +32,7 @@ class seq2CNN(object):
         with tf.name_scope('seq2seq'):
             batch_size = tf.reshape(self.batch_size, [])
             enc_output, enc_state = encoding_layer(rnn_size, self.text_length, enc_embed_input, self.dropout_keep_prob)
-            noise = tf.random_normal(shape=tf.shape(enc_output), mean=0.0, stddev=0.2, dtype=tf.float32) 
+            noise = tf.random_normal(shape=tf.shape(enc_output), mean=0.0, stddev=z_noise_stddev, dtype=tf.float32) 
             enc_output += noise
             dec_input = process_encoding_input(self.targets, vocab_to_int, batch_size)
             dec_embed_input = tf.nn.embedding_lookup(embeddings, dec_input)

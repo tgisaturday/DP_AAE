@@ -201,6 +201,7 @@ def train_cnn(dataset_name):
                 num_filters=params['num_filters'],
                 vocab_size=len(vocab_to_int),
                 embedding_size=params['embedding_dim'],
+                z_noise_stddev=params['z_noise_stddev'],
                 l2_reg_lambda=params['l2_reg_lambda']
                 )
             global_step = tf.Variable(0, name="global_step", trainable=False)            
