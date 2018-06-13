@@ -10,6 +10,14 @@ import math
 initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
+def random_laplace(shape,loc=0.0, scale = 1.0,clip=True):
+    rand_uniform = tf.random_uniform(shape,-0.5,0.5,dtype=tf.float32)
+    rand_lap= loc - scale*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
+    if clip:
+        return tf.clip_by_value(rand_lap,-2.0,2.0)
+    else:
+        return rand_lap
+
 mb_size = 256
 X_dim = 784
 z_dim = 10
@@ -74,8 +82,9 @@ def autoencoder(x):
     # %%
     # store the latent representation
     z = current_input
-    noise = tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=0.2, dtype=tf.float32) 
-    z += noise
+    #noise = tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=0.2, dtype=tf.float32) 
+    enc_noise = random_laplace(shape=tf.shape(z))
+    z = tf.add(z,enc_noise)
     encoder.reverse()
     shapes.reverse()
 
@@ -148,6 +157,8 @@ D_real = discriminator(X)
 D_fake = discriminator(G_sample)
 reg_loss = tf.nn.l2_loss(D_fc2)
 G_true_flat = tf.reshape(X, [-1,28,28,1])
+G_true_noise = random_laplace(shape=tf.shape(G_true_flat),clip=False)
+G_true_flat = tf.add(G_true_flat,G_true_noise)
 D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake) + tf.reduce_mean(reg_loss)
 A_loss = tf.reduce_mean(tf.pow(G_true_flat -G_sample, 2))
 G_loss = -tf.reduce_mean(D_fake)+ tf.reduce_mean(reg_loss)

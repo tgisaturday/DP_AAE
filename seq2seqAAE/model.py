@@ -8,6 +8,10 @@ initializer = tf.contrib.layers.xavier_initializer()
 he_normal = tf.keras.initializers.he_normal()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 regularizer = tf.contrib.layers.l2_regularizer(1e-2)
+def random_laplace(shape,loc=0.0, scale = 1.0):
+    rand_uniform = tf.random_uniform(shape,-0.5,0.5,dtype=tf.float32)
+    rand_lap= loc - scale*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
+    return tf.clip_by_value(rand_lap,-2.0,2.0)
 
 class seq2CNN(object):  
     def __init__(self,embeddings,filter_sizes, max_summary_length, rnn_size, vocab_to_int, num_filters, vocab_size, embedding_size,z_noise_stddev,l2_reg_lambda):
@@ -32,10 +36,13 @@ class seq2CNN(object):
         with tf.name_scope('seq2seq'):
             batch_size = tf.reshape(self.batch_size, [])
             enc_output, enc_state = encoding_layer(rnn_size, self.text_length, enc_embed_input, self.dropout_keep_prob)
-            noise = tf.random_normal(shape=tf.shape(enc_output), mean=0.0, stddev=z_noise_stddev, dtype=tf.float32) 
-            enc_output += noise
+            #enc_noise = tf.random_normal(shape=tf.shape(enc_output), mean=0.0, stddev=z_noise_stddev, dtype=tf.float32)
+            enc_noise = random_laplace(shape=tf.shape(enc_output), loc=0.0, scale=z_noise_stddev)
+            enc_output = tf.add(enc_output,enc_noise)
             dec_input = process_encoding_input(self.targets, vocab_to_int, batch_size)
             dec_embed_input = tf.nn.embedding_lookup(embeddings, dec_input)
+            dec_noise = random_laplace(shape=tf.shape(dec_embed_input), loc=0.0, scale=z_noise_stddev)
+            dec_embed_input = tf.add(dec_embed_input,dec_noise)
             training_logits = decoding_layer(dec_embed_input,
                                                 embeddings,
                                                 enc_output,
@@ -49,6 +56,7 @@ class seq2CNN(object):
                                                 self.dropout_keep_prob, 
                                                 batch_size,
                                                 self.is_training)
+
 
             self.training_logits =tf.argmax(training_logits[0].rnn_output,axis=2,name='rnn_output',output_type=tf.int64)
             self.training_logits = tf.reshape(self.training_logits, [batch_size,max_summary_length])
