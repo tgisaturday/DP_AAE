@@ -15,8 +15,6 @@ def random_laplace(shape,loc=0.0, scale = 1.0,clip=True):
     rand_lap= loc - scale*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
     if clip:
         return tf.clip_by_value(rand_lap,-2.0,2.0)
-    else:
-        return rand_lap
 
 mb_size = 256
 X_dim = 784
@@ -157,7 +155,7 @@ D_real = discriminator(X)
 D_fake = discriminator(G_sample)
 reg_loss = tf.nn.l2_loss(D_fc2)
 G_true_flat = tf.reshape(X, [-1,28,28,1])
-G_true_noise = random_laplace(shape=tf.shape(G_true_flat),clip=False)
+G_true_noise = random_laplace(shape=tf.shape(G_true_flat))
 G_true_flat = tf.add(G_true_flat,G_true_noise)
 D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake) + tf.reduce_mean(reg_loss)
 A_loss = tf.reduce_mean(tf.pow(G_true_flat -G_sample, 2))
