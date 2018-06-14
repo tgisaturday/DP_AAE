@@ -201,6 +201,7 @@ def train_cnn(dataset_name):
                 num_filters=params['num_filters'],
                 vocab_size=len(vocab_to_int),
                 embedding_size=params['embedding_dim'],
+                sensitivity=params['sensitivity'],
                 noise_epsilon=params['noise_epsilon'],
                 l2_reg_lambda=params['l2_reg_lambda']
                 )
@@ -209,11 +210,9 @@ def train_cnn(dataset_name):
             epsilon = params['epsilon']
             learning_rate = tf.train.exponential_decay(params['learning_rate'], global_step,num_batches_per_epoch, 0.95, staircase=True)
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-
             with tf.control_dependencies(update_ops):
-                train_D = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(cnn.D_loss, global_step=global_step)
-                train_G = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(cnn.G_loss,global_step=global_step)
-            
+                train_D = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cnn.D_loss, global_step=global_step)
+                train_G = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cnn.G_loss,global_step=global_step)            
             timestamp = str(int(time.time()))
             out_dir = os.path.abspath(os.path.join(os.path.curdir, dataset_name + "_" + timestamp))
 

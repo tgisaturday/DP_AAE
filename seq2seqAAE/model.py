@@ -8,13 +8,13 @@ initializer = tf.contrib.layers.xavier_initializer()
 he_normal = tf.keras.initializers.he_normal()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 regularizer = tf.contrib.layers.l2_regularizer(1e-2)
-def random_laplace(shape,epsilon=0.2):
+def random_laplace(shape,sensitivity=1.0,epsilon=0.2):
     rand_uniform = tf.random_uniform(shape,-0.5,0.5,dtype=tf.float32)
-    rand_lap= -(1/epsilon)*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
-    return tf.clip_by_norm(tf.clip_by_value(rand_lap, -2.0,2.0),1.0)
+    rand_lap= -(sensitivity/epsilon)*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
+    return tf.clip_by_norm(tf.clip_by_value(rand_lap, -3.0,3.0),sensitivity)
 
 class seq2CNN(object):  
-    def __init__(self,embeddings,filter_sizes, max_summary_length, rnn_size, vocab_to_int, num_filters, vocab_size, embedding_size,noise_epsilon,l2_reg_lambda):
+    def __init__(self,embeddings,filter_sizes, max_summary_length, rnn_size, vocab_to_int, num_filters, vocab_size, embedding_size,sensitivity,noise_epsilon,l2_reg_lambda):
         
         self.input_x = tf.placeholder(tf.int32, [None, None], name='input_x')            
         self.dropout_keep_prob = tf.placeholder(tf.float32, name='dropout_keep_prob')
@@ -24,11 +24,10 @@ class seq2CNN(object):
         self.summary_length = tf.placeholder(tf.int32, (None,), name='summary_length')
         self.seq_lambda = tf.placeholder(tf.float32, name='seq_lambda') 
         self.is_training = tf.placeholder(tf.bool, name='is_training')
-        G_l2_loss = tf.constant(0.0)
-        D_l2_loss = tf.constant(0.0)
+        
         with tf.device('/cpu:0'),tf.name_scope('embedding'):
-            #embeddings = tf.get_variable(name='embedding_W', shape=[vocab_size, embedding_size],initializer=rand_uniform)
-            embeddings=embeddings
+            embeddings = tf.get_variable(name='embedding_W',initializer=embeddings)
+            #embeddings=embeddings
             enc_embed_input = tf.nn.embedding_lookup(embeddings, self.input_x)
             embedding_size = embedding_size
 
@@ -37,7 +36,7 @@ class seq2CNN(object):
             batch_size = tf.reshape(self.batch_size, [])
             enc_output, enc_state = encoding_layer(rnn_size, self.text_length, enc_embed_input, self.dropout_keep_prob)
             #enc_noise = tf.random_normal(shape=tf.shape(enc_output), mean=0.0, stddev=z_noise_stddev, dtype=tf.float32)
-            enc_noise = random_laplace(shape=tf.shape(enc_output), epsilon=noise_epsilon)
+            enc_noise = random_laplace(shape=tf.shape(enc_output),sensitivity=sensitivity, epsilon=noise_epsilon)
             enc_output = tf.add(enc_output,enc_noise)
             dec_input = process_encoding_input(self.targets, vocab_to_int, batch_size)
             dec_embed_input = tf.nn.embedding_lookup(embeddings, dec_input)
@@ -91,7 +90,6 @@ class seq2CNN(object):
                                     initializer=initializer)
                 b = tf.get_variable('b', [1], initializer=tf.constant_initializer(0.1))
                 self.D_logit_fake = tf.nn.xw_plus_b(h_drop, W, b, name='scores')
-                G_l2_loss += tf.nn.l2_loss(W)
                 
         with tf.variable_scope('textCNN', reuse=True):
             inference_output = enc_embed_input
@@ -121,7 +119,7 @@ class seq2CNN(object):
                                     initializer=initializer)
                 b = tf.get_variable('b', [1], initializer=tf.constant_initializer(0.1))
                 self.D_logit_real = tf.nn.xw_plus_b(inference_h_drop, W, b, name='inference_scores')          
-                D_l2_loss += tf.nn.l2_loss(W)
+
 
         # Calculate mean cross-entropy loss
         with tf.name_scope('loss'):            
@@ -129,8 +127,8 @@ class seq2CNN(object):
             seq_loss = tf.contrib.seq2seq.sequence_loss(training_logits[0].rnn_output,self.targets,masks)
             D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_logit_real, labels=tf.ones_like(self.D_logit_real)))
             D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_logit_fake, labels=tf.zeros_like(self.D_logit_fake)))
-            self.D_loss = D_loss_real + D_loss_fake + l2_reg_lambda*(tf.reduce_mean(G_l2_loss)+ tf.reduce_mean(D_l2_loss))/2
-            self.G_loss = self.seq_lambda*tf.reduce_mean(seq_loss) + D_loss_fake + l2_reg_lambda*tf.reduce_mean(G_l2_loss)
+            self.D_loss = D_loss_real + D_loss_fake 
+            self.G_loss = self.seq_lambda*tf.reduce_mean(seq_loss) + D_loss_fake 
             self.A_loss = tf.reduce_mean(seq_loss)
             tf.summary.scalar('D_loss',self.D_loss)
             tf.summary.scalar('G_loss',self.G_loss)
