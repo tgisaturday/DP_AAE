@@ -85,7 +85,7 @@ def autoencoder(x):
         b = tf.Variable(tf.zeros([n_output]))
         theta_A.append(b)
         encoder.append(W)
-        output = tf.nn.relu(tf.add(tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME'), b))
+        output = tf.nn.leaky_relu(tf.add(tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME'), b),0.01)
         current_input = output
 
     # %%
@@ -100,11 +100,11 @@ def autoencoder(x):
         b_enc = tf.Variable(tf.zeros([W.get_shape().as_list()[2]]))
         theta_A.append(W_enc)
         theta_A.append(b_enc)
-        output = tf.nn.relu(tf.add(
+        output = tf.nn.leaky_relu(tf.add(
             tf.nn.conv2d_transpose(
                 current_input, W_enc,
                 tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
-                strides=[1, 2, 2, 1], padding='SAME'), b_enc))
+                strides=[1, 2, 2, 1], padding='SAME'), b_enc),0.01)
         current_input = output
         
     y = current_input
@@ -120,13 +120,13 @@ def autoencoder(x):
         b = tf.Variable(tf.zeros([W.get_shape().as_list()[2]]))
         theta_G.append(W)
         theta_G.append(b)
-        output = tf.nn.relu(tf.add(
+        output = tf.nn.leaky_relu(tf.add(
             tf.nn.conv2d_transpose(
                 current_infer, W,
                 tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
-                strides=[1, 2, 2, 1], padding='SAME'), b))
+                strides=[1, 2, 2, 1], padding='SAME'), b),0.01)
         current_infer = output
-    g = tf.nn.sigmoid(current_infer)
+    g = tf.nn.tanh(current_infer)
     return y, g
 def xavier_init(size):
     in_dim = size[0]
@@ -156,17 +156,17 @@ def discriminator(x):
    
     conv1 = tf.nn.conv2d(x_tensor, D_W1, strides=[1,2,2,1],padding='SAME')
     conv1 = tf.contrib.layers.batch_norm(conv1,center=True, scale=True,is_training=True)
-    h1 = tf.nn.relu(conv1)
+    h1 = tf.nn.leaky_relu(conv1,0.01)
     
     conv2 = tf.nn.conv2d(h1, D_W2, strides=[1,2,2,1],padding='SAME')
     conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
-    h2 = tf.nn.relu(conv2)
+    h2 = tf.nn.leaky_relu(conv2, 0.01)
   
     h2 = tf.layers.flatten(h2)
 
     h2 = tf.matmul(h2, D_fc1) + D_b1
     h2 = tf.contrib.layers.batch_norm(h2,center=True, scale=True,is_training=True)
-    h3 = tf.nn.relu(h2)
+    h3 = tf.nn.leaky_relu(h2, 0.01)
     
     d =  tf.matmul(h3, D_fc2) + D_b2
     return d
