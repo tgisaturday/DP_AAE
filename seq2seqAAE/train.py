@@ -201,7 +201,7 @@ def train_cnn(dataset_name):
                 num_filters=params['num_filters'],
                 vocab_size=len(vocab_to_int),
                 embedding_size=params['embedding_dim'],
-                z_noise_stddev=params['z_noise_stddev'],
+                noise_epsilon=params['noise_epsilon'],
                 l2_reg_lambda=params['l2_reg_lambda']
                 )
             global_step = tf.Variable(0, name="global_step", trainable=False)            
@@ -213,8 +213,6 @@ def train_cnn(dataset_name):
             with tf.control_dependencies(update_ops):
                 train_D = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(cnn.D_loss, global_step=global_step)
                 train_G = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(cnn.G_loss,global_step=global_step)
-                #train_A = tf.train.AdamOptimizer(learning_rate=1e-3).minimize(cnn.A_loss,global_step=global_step)
-            #clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in cnn.D_vars]
             
             timestamp = str(int(time.time()))
             out_dir = os.path.abspath(os.path.join(os.path.curdir, dataset_name + "_" + timestamp))
@@ -257,20 +255,7 @@ def train_cnn(dataset_name):
                 current_step = tf.train.global_step(sess, global_step)
                 train_writer.add_summary(summary,current_step)
                 return D_loss, G_loss, A_loss
-            def A_train_step(x_batch, target_batch,t_batch,s_batch,seq_lambda):
-                feed_dict = {
-                    cnn.input_x: x_batch,
-                    cnn.targets: target_batch,
-                    cnn.text_length: t_batch,
-                    cnn.summary_length: s_batch,
-                    cnn.batch_size: len(x_batch),
-                    cnn.dropout_keep_prob: params['dropout_keep_prob'],
-                    cnn.seq_lambda: seq_lambda,                    
-                    cnn.is_training: True}
-                summary, _, step, D_loss, G_loss,A_loss = sess.run([cnn.merged, train_A, global_step, cnn.D_loss, cnn.G_loss, cnn.A_loss], feed_dict)
-                current_step = tf.train.global_step(sess, global_step)
-                train_writer.add_summary(summary,current_step)
-                return D_loss, G_loss, A_loss
+            
             # One evaluation step: evaluate the model with one batch
             def dev_step(x_batch,target_batch, t_batch,s_batch,seq_lambda):
                 feed_dict = {
@@ -286,7 +271,7 @@ def train_cnn(dataset_name):
                 G_samples = []
                 for example in examples:
                     pad = vocab_to_int['PAD']
-                    result =  " ".join([int_to_vocab[j] for j in example[1:] if j != pad])
+                    result =  " ".join([int_to_vocab[j] for j in example[1:] if j != pad and int_to_vocab.get(j)!=None])
                     G_samples.append(result)
                 return G_samples
 
@@ -306,8 +291,7 @@ def train_cnn(dataset_name):
                 current_step = tf.train.global_step(sess, global_step)
                 seq_lambda = exponential_lambda_decay(params['seq_lambda'], current_step,num_batches_per_epoch, 0.95, staircase=True)                 
                 D_loss, G_loss, A_loss = D_train_step(x_train_batch,target_train_batch,t_train_batch,s_train_batch,seq_lambda)
-                #D_loss, G_loss, A_loss = A_train_step(x_train_batch,target_train_batch,t_train_batch,s_train_batch,seq_lambda)
-                #if current_step%5 == 0:
+ 
                 D_loss, G_loss, A_loss = G_train_step(x_train_batch,target_train_batch,t_train_batch,s_train_batch,seq_lambda)
                 #Step 4.1: evaluate the model with x_dev and y_dev (batch by batch)
                 if current_step % 100 == 0:
@@ -339,7 +323,7 @@ def train_cnn(dataset_name):
                 Original = []
                 for text in x_test_batch:
                     pad = vocab_to_int['PAD']
-                    result =  " ".join([int_to_vocab[j] for j in text if j != pad])
+                    result =  " ".join([int_to_vocab[j] for j in text if j != pad and int_to_vocab.get(j)!=None])
                     Original.append(result)
                 for i in range(len(G_samples)):
                     print('[Original]',file=fp)
