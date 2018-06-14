@@ -10,6 +10,15 @@ import math
 initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
+def exponential_lambda_decay(seq_lambda, global_step, decay_steps, decay_rate, staircase=False):
+    global_step = float(global_step)
+    decay_steps = float(decay_steps)
+    decay_rate = float(decay_rate)
+    p = global_step / decay_steps
+    if staircase:
+        p = math.floor(p)    
+    return seq_lambda * math.pow(decay_rate, p)
+
 def random_laplace(shape, epsilon):
     rand_uniform = tf.random_uniform(shape,-0.5,0.5,dtype=tf.float32)
     rand_lap= - (1/epsilon)*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
@@ -19,7 +28,7 @@ mb_size = 256
 X_dim = 784
 z_dim = 10
 h_dim = 128
-
+len_x_train = 60000
 mnist = input_data.read_data_sets('./MNIST_data', one_hot=True)
 
 def plot(samples):
@@ -41,6 +50,7 @@ initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
 X = tf.placeholder(tf.float32, shape=[None, X_dim])
+seq_lambda = tf.placeholder(tf.float32, name='seq_lambda') 
 theta_G = []
 def autoencoder(x):
     input_shape=[None, 784]
@@ -155,20 +165,21 @@ D_real = discriminator(X)
 D_fake = discriminator(G_sample)
 reg_loss = tf.nn.l2_loss(D_fc2)
 G_true_flat = tf.reshape(X, [-1,28,28,1])
-#G_true_noise = random_laplace(shape=tf.shape(G_true_flat))
-#G_true_flat = tf.add(G_true_flat,G_true_noise)
+
+global_step = tf.Variable(0, name="global_step", trainable=False)
+
 D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake) + tf.reduce_mean(reg_loss)
-A_loss = tf.reduce_mean(tf.pow(G_true_flat -G_sample, 2))
-G_loss = -tf.reduce_mean(D_fake)+ tf.reduce_mean(reg_loss)
+A_loss = seq_lambda*tf.reduce_mean(tf.pow(G_true_flat -G_sample, 2))
+G_loss = A_loss -tf.reduce_mean(D_fake)+ tf.reduce_mean(reg_loss)
 
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D]
 
 with tf.control_dependencies(update_ops):
-    D_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(-D_loss, var_list=theta_D)
-    G_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(G_loss, var_list=theta_G)
-    A_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(A_loss, var_list=theta_G)
+    D_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(-D_loss, var_list=theta_D,global_step=global_step)
+    G_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(G_loss, var_list=theta_G,global_step=global_step)
+    #A_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(A_loss, var_list=theta_G)
 
 
 if not os.path.exists('dc_out/'):
@@ -178,12 +189,14 @@ with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     i = 0
 
-    for it in range(10000000):
+    for it in range(1000000):
+        num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
+        cur_seq_lambda = exponential_lambda_decay(10.0, it,num_batches_per_epoch, 0.95, staircase=True) 
         for _ in range(5):
             X_mb, _ = mnist.train.next_batch(mb_size)
             _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
-        _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb})
-        _, G_loss_curr = sess.run([G_solver, G_loss],feed_dict={X: X_mb})
+
+        _, G_loss_curr,A_loss_curr = sess.run([G_solver, G_loss,A_loss],feed_dict={X: X_mb, seq_lambda: cur_seq_lambda})
 
         if it % 100 == 0:
             print('Iter: {}; D_loss: {:.4}; A_loss: {:.4}; G_loss: {:.4};'.format(it, D_loss_curr, A_loss_curr,G_loss_curr))
