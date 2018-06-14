@@ -178,14 +178,14 @@ G_true = X
 
 D_real = discriminator(X)
 D_fake = discriminator(G_sample)
-reg_loss = tf.nn.l2_loss(D_fc2)
+
 A_true_flat = tf.reshape(X, [-1,28,28,1])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
 
-D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake) + tf.reduce_mean(reg_loss)
+D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
 A_loss = tf.reduce_mean(tf.pow(A_true_flat -A_sample, 2))
-G_loss = -tf.reduce_mean(D_fake)+ tf.reduce_mean(reg_loss)
+G_loss = -tf.reduce_mean(D_fake)
 tf.summary.scalar('D_loss',D_loss)
 tf.summary.scalar('G_loss',G_loss)
 tf.summary.scalar('A_loss',A_loss)
