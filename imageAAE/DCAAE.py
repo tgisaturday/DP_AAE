@@ -85,7 +85,7 @@ def autoencoder(x):
         b = tf.Variable(tf.zeros([n_output]))
         theta_A.append(b)
         encoder.append(W)
-        output = tf.nn.leaky_relu(tf.add(tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME'), b))
+        output = tf.nn.relu(tf.add(tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME'), b))
         current_input = output
 
     # %%
@@ -100,7 +100,7 @@ def autoencoder(x):
         b_enc = tf.Variable(tf.zeros([W.get_shape().as_list()[2]]))
         theta_A.append(W_enc)
         theta_A.append(b_enc)
-        output = tf.nn.leaky_relu(tf.add(
+        output = tf.nn.relu(tf.add(
             tf.nn.conv2d_transpose(
                 current_input, W_enc,
                 tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
@@ -120,13 +120,13 @@ def autoencoder(x):
         b = tf.Variable(tf.zeros([W.get_shape().as_list()[2]]))
         theta_G.append(W)
         theta_G.append(b)
-        output = tf.nn.leaky_relu(tf.add(
+        output = tf.nn.relu(tf.add(
             tf.nn.conv2d_transpose(
                 current_infer, W,
                 tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                 strides=[1, 2, 2, 1], padding='SAME'), b))
         current_infer = output
-    g = current_infer
+    g = tf.nn.sigmoid(current_infer)
     return y, g
 def xavier_init(size):
     in_dim = size[0]
@@ -156,17 +156,17 @@ def discriminator(x):
    
     conv1 = tf.nn.conv2d(x_tensor, D_W1, strides=[1,2,2,1],padding='SAME')
     conv1 = tf.contrib.layers.batch_norm(conv1,center=True, scale=True,is_training=True)
-    h1 = tf.nn.leaky_relu(conv1, 0.2)
+    h1 = tf.nn.relu(conv1)
     
     conv2 = tf.nn.conv2d(h1, D_W2, strides=[1,2,2,1],padding='SAME')
     conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
-    h2 = tf.nn.leaky_relu(conv2, 0.2)
+    h2 = tf.nn.relu(conv2)
   
     h2 = tf.layers.flatten(h2)
 
     h2 = tf.matmul(h2, D_fc1) + D_b1
     h2 = tf.contrib.layers.batch_norm(h2,center=True, scale=True,is_training=True)
-    h3 = tf.nn.leaky_relu(h2, 0.2)
+    h3 = tf.nn.relu(h2)
     
     d =  tf.matmul(h3, D_fc2) + D_b2
     return d
@@ -203,7 +203,8 @@ with tf.control_dependencies(update_ops):
 
 if not os.path.exists('dc_out/'):
     os.makedirs('dc_out/')
-    
+if not os.path.exists('generated/'):
+    os.makedirs('generated/')    
 with tf.Session() as sess:
     train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'mnist',sess.graph)
     sess.run(tf.global_variables_initializer())
@@ -238,8 +239,8 @@ with tf.Session() as sess:
                     np.append(generated,samples,axis=0)
                     np.append(labels,y_mb, axis=0)
                     
-            np.save('generated_{}_image.npy'.format(str(it)), generated)
-            np.save('generated_{}_label.npy'.format(str(it)), samples)
+            np.save('./generated/generated_{}_image.npy'.format(str(it)), generated)
+            np.save('./generated/generated_{}_label.npy'.format(str(it)), samples)
 
 for iii in range(len_x_train//100):
     xt_mb, y_mb = mnist.train.next_batch(100,shuffle=False)
@@ -251,7 +252,7 @@ for iii in range(len_x_train//100):
         np.append(generated,samples,axis=0)
         np.append(labels,y_mb, axis=0)
 
-np.save('generated_{}_image.npy'.format(str(it)), generated)
-np.save('generated_{}_label.npy'.format(str(it)), samples)
+np.save('./generated/generated_{}_image.npy'.format(str(it)), generated)
+np.save('./generated/generated_{}_label.npy'.format(str(it)), samples)
                 
                 
