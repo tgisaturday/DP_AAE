@@ -24,7 +24,7 @@ def random_laplace(shape, epsilon):
     rand_lap= - (1/epsilon)*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
     return tf.clip_by_norm(rand_lap,1.0)
 
-mb_size = 256
+mb_size = 512
 X_dim = 784
 z_dim = 10
 h_dim = 128
@@ -51,6 +51,7 @@ rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
 X = tf.placeholder(tf.float32, shape=[None, X_dim])
 seq_lambda = tf.placeholder(tf.float32, name='seq_lambda') 
+theta_A = []
 theta_G = []
 def autoencoder(x):
     input_shape=[None, 784]
@@ -79,9 +80,9 @@ def autoencoder(x):
         shapes.append(current_input.get_shape().as_list())
         W = tf.Variable(tf.random_uniform([filter_sizes[layer_i],filter_sizes[layer_i],n_input, n_output],-1.0 / math.sqrt(n_input),
                                           1.0 / math.sqrt(n_input)))
-        theta_G.append(W)
+        theta_A.append(W)
         b = tf.Variable(tf.zeros([n_output]))
-        theta_G.append(b)
+        theta_A.append(b)
         encoder.append(W)
         output = tf.nn.leaky_relu(tf.add(tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME'), b))
         current_input = output
@@ -99,8 +100,13 @@ def autoencoder(x):
     # %%
     # Build the decoder using the same weights
     for layer_i, shape in enumerate(shapes):
-        W = encoder[layer_i]
+        W_enc = encoder[layer_i]
+        W = tf.Variable(tf.random_uniform(W_enc.get_shape().as_list(),-1.0 / math.sqrt(n_input),
+                                          1.0 / math.sqrt(n_input)))
         b = tf.Variable(tf.zeros([W.get_shape().as_list()[2]]))
+        theta_A.append(W)
+        theta_A.append(b)
+        theta_G.append(W)
         theta_G.append(b)
         output = tf.nn.leaky_relu(tf.add(
             tf.nn.conv2d_transpose(
@@ -126,6 +132,7 @@ D_b1 = tf.Variable(tf.zeros(shape=[1024]))
 D_fc2 = tf.Variable(xavier_init([1024,1]))
 D_b2 = tf.Variable(tf.zeros(shape=[1]))
 theta_D = [D_W1, D_W2,D_fc1,D_fc2, D_b1, D_b2]
+
 def discriminator(x):
     if len(x.get_shape()) == 2:
         x_dim = np.sqrt(x.get_shape().as_list()[1])
@@ -170,7 +177,7 @@ global_step = tf.Variable(0, name="global_step", trainable=False)
 
 D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake) + tf.reduce_mean(reg_loss)
 A_loss = seq_lambda*tf.reduce_mean(tf.pow(G_true_flat -G_sample, 2))
-G_loss = A_loss -tf.reduce_mean(D_fake)+ tf.reduce_mean(reg_loss)
+G_loss = -tf.reduce_mean(D_fake)+ tf.reduce_mean(reg_loss)
 
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
@@ -179,7 +186,7 @@ clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D]
 with tf.control_dependencies(update_ops):
     D_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(-D_loss, var_list=theta_D,global_step=global_step)
     G_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(G_loss, var_list=theta_G,global_step=global_step)
-    #A_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(A_loss, var_list=theta_G)
+    A_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(A_loss, var_list=theta_A,global_step=global_step)
 
 
 if not os.path.exists('dc_out/'):
@@ -191,12 +198,12 @@ with tf.Session() as sess:
 
     for it in range(1000000):
         num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
-        cur_seq_lambda = exponential_lambda_decay(10.0, it,num_batches_per_epoch, 0.95, staircase=True) 
+        cur_seq_lambda = exponential_lambda_decay(1.0, it,num_batches_per_epoch, 0.95, staircase=True) 
         for _ in range(5):
             X_mb, _ = mnist.train.next_batch(mb_size)
             _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
-
-        _, G_loss_curr,A_loss_curr = sess.run([G_solver, G_loss,A_loss],feed_dict={X: X_mb, seq_lambda: cur_seq_lambda})
+        _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb, seq_lambda: cur_seq_lambda})
+        _, G_loss_curr = sess.run([G_solver, G_loss],feed_dict={X: X_mb})
 
         if it % 100 == 0:
             print('Iter: {}; D_loss: {:.4}; A_loss: {:.4}; G_loss: {:.4};'.format(it, D_loss_curr, A_loss_curr,G_loss_curr))
