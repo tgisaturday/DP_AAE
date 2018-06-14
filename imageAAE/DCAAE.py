@@ -186,6 +186,11 @@ global_step = tf.Variable(0, name="global_step", trainable=False)
 D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake) + tf.reduce_mean(reg_loss)
 A_loss = tf.reduce_mean(tf.pow(A_true_flat -A_sample, 2))
 G_loss = -tf.reduce_mean(D_fake)+ tf.reduce_mean(reg_loss)
+tf.summary.scalar('D_loss',D_loss)
+tf.summary.scalar('G_loss',G_loss)
+tf.summary.scalar('A_loss',A_loss)
+
+merged = tf.summary.merge_all()
 
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
@@ -200,19 +205,17 @@ if not os.path.exists('dc_out/'):
     os.makedirs('dc_out/')
     
 with tf.Session() as sess:
+    train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'mnist',sess.graph)
     sess.run(tf.global_variables_initializer())
     i = 0
     for it in range(1000000):
-        num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
-        #cur_seq_lambda = exponential_lambda_decay(1.0, it,num_batches_per_epoch, 0.95, staircase=True) 
-        #for _ in range(5):
-            #X_mb, _ = mnist.train.next_batch(mb_size)
-            #_, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
-        _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb})
-        _, G_loss_curr = sess.run([G_solver, G_loss],feed_dict={X: X_mb}) 
-        _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
-
-
+        for _ in range(5):
+            X_mb, _ = mnist.train.next_batch(mb_size)
+            _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
+            _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb})
+        summary,_, G_loss_curr = sess.run([merged,G_solver, G_loss],feed_dict={X: X_mb})
+        current_step = tf.train.global_step(sess, global_step)
+        train_writer.add_summary(summary,current_step)
         if it % 100 == 0:
             print('Iter: {}; A_loss: {:.4}; D_loss: {:.4}; G_loss: {:.4};'.format(it,A_loss_curr, D_loss_curr,G_loss_curr))
 
