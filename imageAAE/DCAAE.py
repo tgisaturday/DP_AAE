@@ -196,8 +196,8 @@ update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D]
 
 with tf.control_dependencies(update_ops):
-    D_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(-D_loss, var_list=theta_D,global_step=global_step)
-    G_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(G_loss, var_list=theta_G,global_step=global_step)
+    D_solver = tf.train.AdamOptimizer(learning_rate=5e-5).minimize(-D_loss, var_list=theta_D,global_step=global_step)
+    G_solver = tf.train.AdamOptimizer(learning_rate=5e-5).minimize(G_loss, var_list=theta_G,global_step=global_step)
     A_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(A_loss, var_list=theta_A,global_step=global_step)
 
 if not os.path.exists('dc_out/'):
@@ -209,7 +209,7 @@ with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     i = 0
     for it in range(1000000):
-        for _ in range(10):
+        for _ in range(5):
             X_mb, _ = mnist.train.next_batch(mb_size)
             _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
             _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb})
