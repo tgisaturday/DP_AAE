@@ -205,11 +205,13 @@ with tf.Session() as sess:
     for it in range(1000000):
         num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
         #cur_seq_lambda = exponential_lambda_decay(1.0, it,num_batches_per_epoch, 0.95, staircase=True) 
-        for _ in range(5):
-            X_mb, _ = mnist.train.next_batch(mb_size)
-            _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
+        #for _ in range(5):
+            #X_mb, _ = mnist.train.next_batch(mb_size)
+            #_, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
         _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb})
-        _, G_loss_curr = sess.run([G_solver, G_loss],feed_dict={X: X_mb})
+        _, G_loss_curr = sess.run([G_solver, G_loss],feed_dict={X: X_mb}) 
+        _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
+
 
         if it % 100 == 0:
             print('Iter: {}; A_loss: {:.4}; D_loss: {:.4}; G_loss: {:.4};'.format(it,A_loss_curr, D_loss_curr,G_loss_curr))
@@ -223,10 +225,10 @@ with tf.Session() as sess:
             plt.close(fig)
    
         if it% 100000 == 0:
-            for i in range(len_x_train//100):
+            for ii in range(len_x_train//100):
                 xt_mb, y_mb = mnist.train.next_batch(100,shuffle=False)
                 samples = sess.run(G_sample, feed_dict={X: xt_mb})
-                if i == 0:
+                if ii == 0:
                     generated = samples
                     labels = y_mb
                 else:
@@ -236,10 +238,10 @@ with tf.Session() as sess:
             np.save('generated_{}_image.npy'.format(str(it)), generated)
             np.save('generated_{}_label.npy'.format(str(it)), samples)
 
-for i in range(len_x_train//100):
+for iii in range(len_x_train//100):
     xt_mb, y_mb = mnist.train.next_batch(100,shuffle=False)
     samples = sess.run(G_sample, feed_dict={X: xt_mb})
-    if i == 0:
+    if iii == 0:
         generated = samples
         labels = y_mb
     else:
