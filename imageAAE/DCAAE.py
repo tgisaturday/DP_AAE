@@ -107,7 +107,7 @@ def autoencoder(x):
                 strides=[1, 2, 2, 1], padding='SAME'), b_enc),0.01)
         current_input = output
         
-    y = current_input
+    y = tf.nn.tanh(current_input)
     
     enc_noise = random_laplace(shape=tf.shape(z),sensitivity=1.0,epsilon=0.2)
     z = tf.add(z,enc_noise)
@@ -174,7 +174,6 @@ def discriminator(x):
 
 # Prediction
 A_sample, G_sample = autoencoder(X)
-G_true = X
 
 D_real = discriminator(X)
 D_fake = discriminator(G_sample)
@@ -210,7 +209,7 @@ with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     i = 0
     for it in range(1000000):
-        for _ in range(5):
+        for _ in range(10):
             X_mb, _ = mnist.train.next_batch(mb_size)
             _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
             _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb})
