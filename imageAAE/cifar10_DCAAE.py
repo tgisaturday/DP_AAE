@@ -165,15 +165,15 @@ def autoencoder(x):
     return y, g, scores
 
 
-D_W1 = tf.Variable(xavier_init([5,5,3,64]), name='W1')
-D_W2 = tf.Variable(xavier_init([5,5,64,64]), name='W2')
+D_W1 = tf.Variable(xavier_init([5,5,3,32]), name='W1')
+D_W2 = tf.Variable(xavier_init([5,5,32,64]), name='W2')
 D_W3 = tf.Variable(xavier_init([5,5,64,128]), name='W3')
-D_W4 = tf.Variable(xavier_init([5,5,128,128]), name='W4')
-D_fc1 = tf.Variable(xavier_init([512, 128]))
-D_b1 = tf.Variable(tf.zeros(shape=[128]))
-D_fc2 = tf.Variable(xavier_init([128,1]))
+D_W4 = tf.Variable(xavier_init([5,5,128,256]), name='W4')
+D_fc1 = tf.Variable(xavier_init([1024, 1024]))
+D_b1 = tf.Variable(tf.zeros(shape=[1024]))
+D_fc2 = tf.Variable(xavier_init([1024, 1]))
 D_b2 = tf.Variable(tf.zeros(shape=[1]))
-theta_D = [D_W1, D_W2,D_fc1,D_fc2, D_b1, D_b2]
+theta_D = [D_W1, D_W2,D_W3,D_fc1,D_b1,D_fc2,D_b2]
 
 def discriminator(x):
     if len(x.get_shape()) == 3:
@@ -241,10 +241,10 @@ update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D]
 
 with tf.control_dependencies(update_ops):
-    D_solver = tf.train.AdamOptimizer(learning_rate=5e-5).minimize(-D_loss, var_list=theta_D,global_step=global_step)
-    G_solver = tf.train.AdamOptimizer(learning_rate=5e-5).minimize(G_loss, var_list=theta_G,global_step=global_step)
-    A_solver = tf.train.AdamOptimizer(learning_rate=5e-5).minimize(A_loss, var_list=theta_A,global_step=global_step)
-    C_solver = tf.train.AdamOptimizer(learning_rate=5e-5).minimize(C_loss, var_list=theta_C,global_step=global_step)
+    D_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(-D_loss, var_list=theta_D,global_step=global_step)
+    G_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(G_loss, var_list=theta_G,global_step=global_step)
+    A_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(A_loss, var_list=theta_A,global_step=global_step)
+    C_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(C_loss, var_list=theta_C,global_step=global_step)
     
 if not os.path.exists('dc_out_cifar10/'):
     os.makedirs('dc_out_cifar10/')

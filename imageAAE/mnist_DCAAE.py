@@ -61,8 +61,8 @@ def xavier_init(size):
 
 def autoencoder(x):
     input_shape=[None, 784]
-    n_filters=[1, 32, 32, 32]
-    filter_sizes=[5, 5, 5, 5]
+    n_filters=[1, 256, 128, 64, 32]
+    filter_sizes=[5, 5, 5, 5, 5]
     
     if len(x.get_shape()) == 2:
         x_dim = np.sqrt(x.get_shape().as_list()[1])
@@ -97,7 +97,7 @@ def autoencoder(x):
         
     h = tf.layers.flatten(current_input)
     h_drop = tf.nn.dropout(h, 0.5)
-    W_c = tf.Variable(xavier_init([512,10]))
+    W_c = tf.Variable(xavier_init([128,10]))
     b_c = tf.Variable(tf.constant(0.1, shape=[10]), name='b')
     theta_C.append(W_c)
     theta_C.append(b_c)
@@ -145,15 +145,15 @@ def autoencoder(x):
     return y, g, scores
 
 
-D_W1 = tf.Variable(tf.random_uniform([5,5,1,64],-1.0 ,1.0), name='W1')
-D_W2 = tf.Variable(tf.random_uniform([5,5,64,128], -1.0/8,1.0/8), name='W2')
-D_W3 = tf.Variable(tf.random_uniform([5,5,128,256], -1.0/8,1.0/8), name='W3')
-D_W4 = tf.Variable(tf.random_uniform([5,5,256,512], -1.0/16,1.0/16), name='W4')
-D_fc1 = tf.Variable(xavier_init([2048, 1024]))
+D_W1 = tf.Variable(xavier_init([5,5,1,32]), name='W1')
+D_W2 = tf.Variable(xavier_init([5,5,32,64]), name='W2')
+D_W3 = tf.Variable(xavier_init([5,5,64,128]), name='W3')
+D_W4 = tf.Variable(xavier_init([5,5,128,256]), name='W4')
+D_fc1 = tf.Variable(xavier_init([1024, 1024]))
 D_b1 = tf.Variable(tf.zeros(shape=[1024]))
-D_fc2 = tf.Variable(xavier_init([1024,1]))
+D_fc2 = tf.Variable(xavier_init([1024, 1]))
 D_b2 = tf.Variable(tf.zeros(shape=[1]))
-theta_D = [D_W1, D_W2,D_fc1,D_fc2, D_b1, D_b2]
+theta_D = [D_W1, D_W2,D_W3,D_fc1,D_b1,D_fc2,D_b2]
 
 def discriminator(x):
     if len(x.get_shape()) == 2:
