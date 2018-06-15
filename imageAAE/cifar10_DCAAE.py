@@ -6,6 +6,8 @@ plt.switch_backend('agg')
 import matplotlib.gridspec as gridspec
 import os
 import math
+import cv2
+from scipy.misc import toimage
 
 initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
@@ -52,7 +54,8 @@ def plot(samples):
         ax.set_xticklabels([])
         ax.set_yticklabels([])
         ax.set_aspect('equal')
-        plt.imshow(sample.reshape(32, 32,3))
+        img = sample.reshape(32, 32,3)
+        plt.imshow(toimage(img),interpolation='nearest')
 
     return fig
 
@@ -238,10 +241,10 @@ update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D]
 
 with tf.control_dependencies(update_ops):
-    D_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(-D_loss, var_list=theta_D,global_step=global_step)
-    G_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(G_loss, var_list=theta_G,global_step=global_step)
-    A_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(A_loss, var_list=theta_A,global_step=global_step)
-    C_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(C_loss, var_list=theta_C,global_step=global_step)
+    D_solver = tf.train.AdamOptimizer(learning_rate=5e-5).minimize(-D_loss, var_list=theta_D,global_step=global_step)
+    G_solver = tf.train.AdamOptimizer(learning_rate=5e-5).minimize(G_loss, var_list=theta_G,global_step=global_step)
+    A_solver = tf.train.AdamOptimizer(learning_rate=5e-5).minimize(A_loss, var_list=theta_A,global_step=global_step)
+    C_solver = tf.train.AdamOptimizer(learning_rate=5e-5).minimize(C_loss, var_list=theta_C,global_step=global_step)
     
 if not os.path.exists('dc_out_cifar10/'):
     os.makedirs('dc_out_cifar10/')
