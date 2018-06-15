@@ -81,8 +81,8 @@ def xavier_init(size):
 
 def autoencoder(x):
     input_shape=[None, 32, 32, 3]
-    n_filters=[3, 64, 64, 32, 32]
-    filter_sizes=[4, 4, 4, 4, 4]
+    n_filters=[3, 256, 128, 64, 32]
+    filter_sizes=[5, 5, 5, 5, 5]
     
     if len(x.get_shape()) == 3:
         x_dim = np.sqrt(x.get_shape().as_list()[1])
