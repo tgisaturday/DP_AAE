@@ -111,7 +111,7 @@ def autoencoder(x):
     # Build the decoder using the same weights
     for layer_i, shape in enumerate(shapes):
         W_enc = encoder[layer_i]
-        b_enc = tf.Variable(tf.zeros([W.get_shape().as_list()[2]]))
+        b_enc = tf.Variable(tf.zeros([W_enc.get_shape().as_list()[2]]))
         #theta_A.append(W_enc)
         theta_A.append(b_enc)
         output = tf.nn.relu(tf.add(
@@ -132,7 +132,7 @@ def autoencoder(x):
         W_enc = encoder[layer_i]
         W = tf.Variable(tf.random_uniform(W_enc.get_shape().as_list(),-1.0 / math.sqrt(n_input),
                                           1.0 / math.sqrt(n_input)))
-        b = tf.Variable(tf.zeros([W.get_shape().as_list()[2]]))
+        b = tf.Variable(tf.zeros([W_enc.get_shape().as_list()[2]]))
         theta_G.append(W)
         theta_G.append(b)
         output = tf.nn.relu(tf.add(

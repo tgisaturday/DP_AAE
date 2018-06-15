@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.examples.tutorials.mnist import input_data
+from tensorflow.python.keras._impl.keras.datasets.cifar10 import load_data
 import numpy as np
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
@@ -25,11 +25,20 @@ def random_laplace(shape,sensitivity, epsilon):
     return tf.clip_by_norm(tf.clip_by_value(rand_lap, -3.0,3.0),sensitivity)
 
 mb_size = 256
-X_dim = 784
-z_dim = 10
-h_dim = 128
+X_dim = 1024
 len_x_train = 60000
-mnist = input_data.read_data_sets('./MNIST_data', one_hot=True)
+
+def next_batch(num, data, labels):
+    '''
+    Return a total of `num` random samples and labels. 
+    '''
+    idx = np.arange(0 , len(data))
+    np.random.shuffle(idx)
+    idx = idx[:num]
+    data_shuffle = [data[ i] for i in idx]
+    labels_shuffle = [labels[ i] for i in idx]
+
+    return np.asarray(data_shuffle), np.asarray(labels_shuffle)
 
 def plot(samples):
     fig = plt.figure(figsize=(4, 4))
@@ -42,7 +51,7 @@ def plot(samples):
         ax.set_xticklabels([])
         ax.set_yticklabels([])
         ax.set_aspect('equal')
-        plt.imshow(sample.reshape(28, 28), cmap='Greys_r')
+        plt.imshow(sample.reshape(32, 32,3))
 
     return fig
 
@@ -51,6 +60,13 @@ rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
 X = tf.placeholder(tf.float32, shape=[None, X_dim])
 Y = tf.placeholder(tf.float32, [None, 10])
+(x_train, y_train), (x_test, y_test) = load_data()
+x_train = np.concatenate((x_train, x_test), axis=0)
+y_train = np.concatenate((y_train, y_test), axis=0)
+
+y_train_one_hot = tf.squeeze(tf.one_hot(y_train, 10),axis=1)
+y_test_one_hot = tf.squeeze(tf.one_hot(y_test, 10),axis=1)
+
 theta_A = []
 theta_G = []
 theta_C = []
@@ -60,9 +76,9 @@ def xavier_init(size):
     return tf.random_normal(shape=size, stddev=xavier_stddev)
 
 def autoencoder(x):
-    input_shape=[None, 784]
-    n_filters=[1, 32, 32, 32, 32]
-    filter_sizes=[5, 5, 5, 5, 5]
+    input_shape=[None, X_dim]
+    n_filters=[3, 64, 64, 32, 32]
+    filter_sizes=[4, 4, 4, 4, 4]
     
     if len(x.get_shape()) == 2:
         x_dim = np.sqrt(x.get_shape().as_list()[1])
@@ -111,7 +127,7 @@ def autoencoder(x):
     # Build the decoder using the same weights
     for layer_i, shape in enumerate(shapes):
         W_enc = encoder[layer_i]
-        b_enc = tf.Variable(tf.zeros([W.get_shape().as_list()[2]]))
+        b_enc = tf.Variable(tf.zeros([W_enc.get_shape().as_list()[2]]))
         #theta_A.append(W_enc)
         theta_A.append(b_enc)
         output = tf.nn.relu(tf.add(
@@ -132,7 +148,7 @@ def autoencoder(x):
         W_enc = encoder[layer_i]
         W = tf.Variable(tf.random_uniform(W_enc.get_shape().as_list(),-1.0 / math.sqrt(n_input),
                                           1.0 / math.sqrt(n_input)))
-        b = tf.Variable(tf.zeros([W.get_shape().as_list()[2]]))
+        b = tf.Variable(tf.zeros([W_enc.get_shape().as_list()[2]]))
         theta_G.append(W)
         theta_G.append(b)
         output = tf.nn.relu(tf.add(
@@ -145,10 +161,10 @@ def autoencoder(x):
     return y, g, scores
 
 
-D_W1 = tf.Variable(xavier_init([5,5,1,32]), name='W1')
-D_W2 = tf.Variable(xavier_init([5,5,32,64]), name='W2')
-D_W3 = tf.Variable(xavier_init([5,5,64,64]), name='W3')
-D_W4 = tf.Variable(xavier_init([5,5,64,128]), name='W4')
+D_W1 = tf.Variable(xavier_init([5,5,3,64]), name='W1')
+D_W2 = tf.Variable(xavier_init([5,5,64,64]), name='W2')
+D_W3 = tf.Variable(xavier_init([5,5,64,128]), name='W3')
+D_W4 = tf.Variable(xavier_init([5,5,128,128]), name='W4')
 D_fc1 = tf.Variable(xavier_init([512, 128]))
 D_b1 = tf.Variable(tf.zeros(shape=[128]))
 D_fc2 = tf.Variable(xavier_init([128,1]))
@@ -162,7 +178,7 @@ def discriminator(x):
             raise ValueError('Unsupported input dimensions')
         x_dim = int(x_dim)
         x_tensor = tf.reshape(
-            x, [-1, x_dim, x_dim, 1])
+            x, [-1, x_dim, x_dim, 3])
     elif len(x.get_shape()) == 4:
         x_tensor = x
     else:
@@ -200,7 +216,7 @@ A_sample, G_sample, scores = autoencoder(X)
 D_real = discriminator(X)
 D_fake = discriminator(G_sample)
 
-A_true_flat = tf.reshape(X, [-1,28,28,1])
+A_true_flat = tf.reshape(X, [-1,32,32,3])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
 
@@ -236,7 +252,7 @@ with tf.Session() as sess:
     i = 0
     for it in range(1000000):
         for _ in range(5):
-            X_mb, Y_mb = mnist.train.next_batch(mb_size)
+            X_mb, Y_mb = next_batch(mb_size, x_train, y_train_one_hot.eval())
             _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
             _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb,Y: Y_mb})
             _, C_loss_curr = sess.run([C_solver, C_loss],feed_dict={X: X_mb,Y: Y_mb})
