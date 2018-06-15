@@ -226,10 +226,10 @@ with tf.control_dependencies(update_ops):
     A_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(A_loss, var_list=theta_A,global_step=global_step)
     C_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(C_loss, var_list=theta_C,global_step=global_step)
     
-if not os.path.exists('dc_out/'):
-    os.makedirs('dc_out/')
-if not os.path.exists('generated/'):
-    os.makedirs('generated/')    
+if not os.path.exists('dc_out_mnist/'):
+    os.makedirs('dc_out_mnist/')
+if not os.path.exists('generated_mnist/'):
+    os.makedirs('generated_mnist/')    
 with tf.Session() as sess:
     train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'mnist',sess.graph)
     sess.run(tf.global_variables_initializer())
@@ -250,7 +250,7 @@ with tf.Session() as sess:
             samples = sess.run(G_sample, feed_dict={X: X_mb})
             samples_flat = tf.reshape(samples,[-1,784]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
-            plt.savefig('dc_out/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
+            plt.savefig('dc_out_mnist/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
             i += 1
             plt.close(fig)
    
@@ -265,8 +265,8 @@ with tf.Session() as sess:
                     np.append(generated,samples,axis=0)
                     np.append(labels,y_mb, axis=0)
                     
-            np.save('./generated/generated_{}_image.npy'.format(str(it)), generated)
-            np.save('./generated/generated_{}_label.npy'.format(str(it)), samples)
+            np.save('./generated_mnist/generated_{}_image.npy'.format(str(it)), generated)
+            np.save('./generated_mnist/generated_{}_label.npy'.format(str(it)), samples)
 
 for iii in range(len_x_train//100):
     xt_mb, y_mb = mnist.train.next_batch(100,shuffle=False)
@@ -278,7 +278,7 @@ for iii in range(len_x_train//100):
         np.append(generated,samples,axis=0)
         np.append(labels,y_mb, axis=0)
 
-np.save('./generated/generated_{}_image.npy'.format(str(it)), generated)
-np.save('./generated/generated_{}_label.npy'.format(str(it)), samples)
+np.save('./generated_mnist/generated_{}_image.npy'.format(str(it)), generated)
+np.save('./generated_mnist/generated_{}_label.npy'.format(str(it)), samples)
                 
                 
