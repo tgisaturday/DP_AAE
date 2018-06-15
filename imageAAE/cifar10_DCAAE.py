@@ -28,12 +28,13 @@ mb_size = 256
 X_dim = 1024
 len_x_train = 60000
 
-def next_batch(num, data, labels):
+def next_batch(num, data, labels,shuffle=True):
     '''
     Return a total of `num` random samples and labels. 
     '''
     idx = np.arange(0 , len(data))
-    np.random.shuffle(idx)
+    if shuffle == True:
+        np.random.shuffle(idx)
     idx = idx[:num]
     data_shuffle = [data[ i] for i in idx]
     labels_shuffle = [labels[ i] for i in idx]
@@ -264,7 +265,7 @@ with tf.Session() as sess:
 
         if it % 1000 == 0:
             samples = sess.run(G_sample, feed_dict={X: X_mb})
-            samples_flat = tf.reshape(samples,[-1,784]).eval()         
+            samples_flat = tf.reshape(samples,[-1,32,32,3]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
             plt.savefig('dc_out/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
             i += 1
@@ -272,7 +273,7 @@ with tf.Session() as sess:
    
         if it% 100000 == 0:
             for ii in range(len_x_train//100):
-                xt_mb, y_mb = mnist.train.next_batch(100,shuffle=False)
+                xt_mb, y_mb = next_batch(100,x_train, y_train_one_hot.eval(),shuffle=False)
                 samples = sess.run(G_sample, feed_dict={X: xt_mb})
                 if ii == 0:
                     generated = samples

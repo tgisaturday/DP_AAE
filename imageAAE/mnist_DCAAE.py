@@ -149,7 +149,7 @@ D_W1 = tf.Variable(tf.random_uniform([5,5,1,64],-1.0 ,1.0), name='W1')
 D_W2 = tf.Variable(tf.random_uniform([5,5,64,128], -1.0/8,1.0/8), name='W2')
 D_W3 = tf.Variable(tf.random_uniform([5,5,128,256], -1.0/8,1.0/8), name='W3')
 D_W4 = tf.Variable(tf.random_uniform([5,5,256,512], -1.0/16,1.0/16), name='W4')
-D_fc1 = tf.Variable(xavier_init([7*7*512, 1024]))
+D_fc1 = tf.Variable(xavier_init([2048, 1024]))
 D_b1 = tf.Variable(tf.zeros(shape=[1024]))
 D_fc2 = tf.Variable(xavier_init([1024,1]))
 D_b2 = tf.Variable(tf.zeros(shape=[1]))
@@ -188,9 +188,9 @@ def discriminator(x):
 
     h4 = tf.matmul(h4, D_fc1) + D_b1
     h4 = tf.contrib.layers.batch_norm(h4,center=True, scale=True,is_training=True)
-    h5 = tf.nn.leaky_relu(h5, 0.2)
+    h5 = tf.nn.leaky_relu(h4, 0.2)
     
-    d =  tf.matmul(h3, D_fc2) + D_b2
+    d =  tf.matmul(h5, D_fc2) + D_b2
     return d
 
 
