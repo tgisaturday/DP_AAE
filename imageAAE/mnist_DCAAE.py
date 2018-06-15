@@ -124,8 +124,8 @@ def autoencoder(x):
     y = tf.nn.tanh(current_input)
     
     #enc_noise = random_laplace(shape=tf.shape(z),sensitivity=1.0,epsilon=0.2)
-    #enc_noise =tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=1.0, dtype=tf.float32)
-    #z = tf.add(z,enc_noise)
+    enc_noise =tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=1.0, dtype=tf.float32)
+    z = tf.add(z,enc_noise)
     current_infer = z
     
     for layer_i, shape in enumerate(shapes):
