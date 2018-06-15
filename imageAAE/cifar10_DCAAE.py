@@ -61,8 +61,8 @@ def xavier_init(size):
 
 def autoencoder(x):
     input_shape=[None, 784]
-    n_filters=[1, 10, 10, 10]
-    filter_sizes=[3, 3, 3, 3]
+    n_filters=[1, 32, 32, 32, 32]
+    filter_sizes=[5, 5, 5, 5, 5]
     
     if len(x.get_shape()) == 2:
         x_dim = np.sqrt(x.get_shape().as_list()[1])
@@ -97,7 +97,7 @@ def autoencoder(x):
         
     h = tf.layers.flatten(current_input)
     h_drop = tf.nn.dropout(h, 0.5)
-    W_c = tf.Variable(xavier_init([160,10]))
+    W_c = tf.Variable(xavier_init([128,10]))
     b_c = tf.Variable(tf.constant(0.1, shape=[10]), name='b')
     theta_C.append(W_c)
     theta_C.append(b_c)
@@ -112,7 +112,7 @@ def autoencoder(x):
     for layer_i, shape in enumerate(shapes):
         W_enc = encoder[layer_i]
         b_enc = tf.Variable(tf.zeros([W.get_shape().as_list()[2]]))
-        theta_A.append(W_enc)
+        #theta_A.append(W_enc)
         theta_A.append(b_enc)
         output = tf.nn.relu(tf.add(
             tf.nn.conv2d_transpose(
@@ -124,8 +124,8 @@ def autoencoder(x):
     y = tf.nn.tanh(current_input)
     
     #enc_noise = random_laplace(shape=tf.shape(z),sensitivity=1.0,epsilon=0.2)
-    enc_noise =tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=1.0, dtype=tf.float32)
-    z = tf.add(z,enc_noise)
+    #enc_noise =tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=1.0, dtype=tf.float32)
+    #z = tf.add(z,enc_noise)
     current_infer = z
     
     for layer_i, shape in enumerate(shapes):
@@ -145,11 +145,13 @@ def autoencoder(x):
     return y, g, scores
 
 
-D_W1 = tf.Variable(tf.random_uniform([4,4,1,64],-1.0 ,1.0), name='W1')
-D_W2 = tf.Variable(tf.random_uniform([4,4,64,128], -1.0/8,1.0/8), name='W2')
-D_fc1 = tf.Variable(xavier_init([7*7*128, 1024]))
-D_b1 = tf.Variable(tf.zeros(shape=[1024]))
-D_fc2 = tf.Variable(xavier_init([1024,1]))
+D_W1 = tf.Variable(xavier_init([5,5,1,32]), name='W1')
+D_W2 = tf.Variable(xavier_init([5,5,32,64]), name='W2')
+D_W3 = tf.Variable(xavier_init([5,5,64,64]), name='W3')
+D_W4 = tf.Variable(xavier_init([5,5,64,128]), name='W4')
+D_fc1 = tf.Variable(xavier_init([512, 128]))
+D_b1 = tf.Variable(tf.zeros(shape=[128]))
+D_fc2 = tf.Variable(xavier_init([128,1]))
 D_b2 = tf.Variable(tf.zeros(shape=[1]))
 theta_D = [D_W1, D_W2,D_fc1,D_fc2, D_b1, D_b2]
 
@@ -173,14 +175,22 @@ def discriminator(x):
     conv2 = tf.nn.conv2d(h1, D_W2, strides=[1,2,2,1],padding='SAME')
     conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
     h2 = tf.nn.leaky_relu(conv2, 0.2)
-  
-    h2 = tf.layers.flatten(h2)
-
-    h2 = tf.matmul(h2, D_fc1) + D_b1
-    h2 = tf.contrib.layers.batch_norm(h2,center=True, scale=True,is_training=True)
-    h3 = tf.nn.leaky_relu(h2, 0.2)
     
-    d =  tf.matmul(h3, D_fc2) + D_b2
+    conv3 = tf.nn.conv2d(h2, D_W3, strides=[1,2,2,1],padding='SAME')
+    conv3 = tf.contrib.layers.batch_norm(conv3,center=True, scale=True,is_training=True)
+    h3 = tf.nn.leaky_relu(conv3, 0.2)
+    
+    conv4 = tf.nn.conv2d(h3, D_W4, strides=[1,2,2,1],padding='SAME')
+    conv4 = tf.contrib.layers.batch_norm(conv4,center=True, scale=True,is_training=True)
+    h4 = tf.nn.leaky_relu(conv4, 0.2)
+    
+    h4 = tf.layers.flatten(h4)
+
+    h4 = tf.matmul(h4, D_fc1) + D_b1
+    h4 = tf.contrib.layers.batch_norm(h4,center=True, scale=True,is_training=True)
+    h5 = tf.nn.leaky_relu(h4, 0.2)
+    
+    d =  tf.matmul(h5, D_fc2) + D_b2
     return d
 
 
