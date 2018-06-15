@@ -58,7 +58,7 @@ def plot(samples):
 initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
-X = tf.placeholder(tf.float32, shape=[None, X_dim])
+X = tf.placeholder(tf.float32, shape=[None, 32, 32, 3])
 Y = tf.placeholder(tf.float32, [None, 10])
 (x_train, y_train), (x_test, y_test) = load_data()
 x_train = np.concatenate((x_train, x_test), axis=0)
@@ -76,17 +76,17 @@ def xavier_init(size):
     return tf.random_normal(shape=size, stddev=xavier_stddev)
 
 def autoencoder(x):
-    input_shape=[None, X_dim]
+    input_shape=[None, 32, 32, 3]
     n_filters=[3, 64, 64, 32, 32]
     filter_sizes=[4, 4, 4, 4, 4]
     
-    if len(x.get_shape()) == 2:
+    if len(x.get_shape()) == 3:
         x_dim = np.sqrt(x.get_shape().as_list()[1])
         if x_dim != int(x_dim):
             raise ValueError('Unsupported input dimensions')
         x_dim = int(x_dim)
         x_tensor = tf.reshape(
-            x, [-1, x_dim, x_dim, n_filters[0]])
+            x, [-1, x_dim, x_dim, 3])
     elif len(x.get_shape()) == 4:
         x_tensor = x
     else:
@@ -172,13 +172,13 @@ D_b2 = tf.Variable(tf.zeros(shape=[1]))
 theta_D = [D_W1, D_W2,D_fc1,D_fc2, D_b1, D_b2]
 
 def discriminator(x):
-    if len(x.get_shape()) == 2:
+    if len(x.get_shape()) == 3:
         x_dim = np.sqrt(x.get_shape().as_list()[1])
         if x_dim != int(x_dim):
             raise ValueError('Unsupported input dimensions')
         x_dim = int(x_dim)
         x_tensor = tf.reshape(
-            x, [-1, x_dim, x_dim, 3])
+            x, [-1, 32, 32, 3])
     elif len(x.get_shape()) == 4:
         x_tensor = x
     else:
