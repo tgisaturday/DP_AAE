@@ -162,7 +162,7 @@ def autoencoder(x):
             output = tf.nn.relu(deconv)
             current_input = output
         logits = current_input    
-        y = tf.nn.sigmoid(current_input)
+        y = tf.nn.tanh(current_input)
     
     #enc_noise = random_laplace(shape=tf.shape(z),sensitivity=1.0,epsilon=0.2)
     #enc_noise =tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=1.0, dtype=tf.float32)
@@ -245,7 +245,8 @@ A_true_flat = tf.reshape(X, [-1,32,32,3])
 global_step = tf.Variable(0, name="global_step", trainable=False)
 
 D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
-A_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=A_true_flat,logits=logits))
+#A_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=A_true_flat,logits=logits))
+A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
 G_loss = -tf.reduce_mean(D_fake)
 C_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=Y,logits=scores))
 
