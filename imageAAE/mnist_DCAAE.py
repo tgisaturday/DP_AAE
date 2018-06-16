@@ -270,10 +270,10 @@ clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D]
         
 num_batches_per_epoch = int((60000-1)/256) + 1
 
-learning_rate = tf.train.exponential_decay(5e-3, global_step,num_batches_per_epoch, 0.95, staircase=True)
+learning_rate = tf.train.exponential_decay(1e-2, global_step,num_batches_per_epoch, 0.95, staircase=True)
 with tf.control_dependencies(update_ops):
-    D_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(-D_loss, var_list=theta_D,global_step=global_step)
-    G_solver = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(G_loss, var_list=theta_G,global_step=global_step)
+    D_solver = tf.train.AdamOptimizer(learning_rate=1e-2).minimize(-D_loss, var_list=theta_D,global_step=global_step)
+    G_solver = tf.train.AdamOptimizer(learning_rate=1e-2).minimize(G_loss, var_list=theta_G,global_step=global_step)
     A_solver = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(A_loss, var_list=theta_A,global_step=global_step)
     C_solver = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(C_loss, var_list=theta_C,global_step=global_step)
     
