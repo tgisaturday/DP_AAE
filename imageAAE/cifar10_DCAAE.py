@@ -43,6 +43,18 @@ def next_batch(num, data, labels,shuffle=True):
 
     return np.asarray(data_shuffle), np.asarray(labels_shuffle)
 
+def normalize(x):
+    """
+        argument
+            - x: input image data in numpy array [32, 32, 3]
+        return
+            - normalized x 
+    """
+    min_val = np.min(x)
+    max_val = np.max(x)
+    x = (x-min_val) / (max_val-min_val)
+    return x
+
 def plot(samples):
     fig = plt.figure(figsize=(4, 4))
     gs = gridspec.GridSpec(8, 8)
@@ -64,12 +76,14 @@ rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
 X = tf.placeholder(tf.float32, shape=[None, 32, 32, 3])
 Y = tf.placeholder(tf.float32, [None, 10])
+
 (x_train, y_train), (x_test, y_test) = load_data()
 x_train = np.concatenate((x_train, x_test), axis=0)
 y_train = np.concatenate((y_train, y_test), axis=0)
 
+x_train = normalize(x_train)
 y_train_one_hot = tf.squeeze(tf.one_hot(y_train, 10),axis=1)
-y_test_one_hot = tf.squeeze(tf.one_hot(y_test, 10),axis=1)
+
 
 theta_A = []
 theta_G = []
@@ -81,8 +95,8 @@ def xavier_init(size):
 
 def autoencoder(x):
     input_shape=[None, 32, 32, 3]
-    n_filters=[3, 256, 128, 64, 32]
-    filter_sizes=[5, 5, 5, 5, 5]
+    n_filters=[3, 64, 128, 256, 512, 1024]
+    filter_sizes=[5, 5, 5, 5, 5, 5]
     
     if len(x.get_shape()) == 3:
         x_dim = np.sqrt(x.get_shape().as_list()[1])
@@ -101,67 +115,71 @@ def autoencoder(x):
     # Build the encoder
     encoder = []
     shapes = []
-    for layer_i, n_output in enumerate(n_filters[1:]):
-        n_input = current_input.get_shape().as_list()[3]
-        shapes.append(current_input.get_shape().as_list())
-        W = tf.Variable(tf.random_uniform([filter_sizes[layer_i],filter_sizes[layer_i],n_input, n_output],-1.0 / math.sqrt(n_input),
-                                          1.0 / math.sqrt(n_input)))
-        theta_A.append(W)
-        theta_C.append(W)
-        b = tf.Variable(tf.zeros([n_output]))
-        theta_A.append(b)
-        theta_C.append(b)
-        encoder.append(W)
-        output = tf.nn.relu(tf.add(tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME'), b))
-        current_input = output
+    with tf.name_scope("Encoder"):
+        for layer_i, n_output in enumerate(n_filters[1:]):
+            n_input = current_input.get_shape().as_list()[3]
+            shapes.append(current_input.get_shape().as_list())
+            W = tf.Variable(tf.random_uniform([filter_sizes[layer_i],filter_sizes[layer_i],n_input, n_output],
+                                              -1.0 / math.sqrt(n_input),1.0 / math.sqrt(n_input)))
+            theta_A.append(W)
+            theta_C.append(W)
+            encoder.append(W)
+            conv = tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME')
+            conv = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=True)
+            output = tf.nn.relu(conv)
+            current_input = output
         
-    h = tf.layers.flatten(current_input)
-    h_drop = tf.nn.dropout(h, 0.5)
-    W_c = tf.Variable(xavier_init([128,10]))
-    b_c = tf.Variable(tf.constant(0.1, shape=[10]), name='b')
-    theta_C.append(W_c)
-    theta_C.append(b_c)
-    scores = tf.nn.xw_plus_b(h_drop, W_c, b_c, name='scores')
-    # %%
+    with tf.name_scope("Softmax_Classifier"):
+        h = tf.layers.flatten(current_input)
+        W_c1 = tf.Variable(xavier_init([1024,1024]))
+        b_c1 = tf.Variable(tf.constant(0.1, shape=[1024]), name='b')
+        theta_C.append(W_c1)
+        theta_C.append(b_c1)
+        fc1 = tf.nn.xw_plus_b(h, W_c1, b_c1, name='scores')
+        fc1 = tf.contrib.layers.batch_norm(fc1,center=True, scale=True,is_training=True)
+        fc1 = tf.nn.relu(fc1)
+        W_c2 = tf.Variable(xavier_init([1024,10]))
+        b_c2 = tf.Variable(tf.constant(0.1, shape=[10]), name='b')
+        theta_C.append(W_c2)
+        theta_C.append(b_c2)
+        scores = tf.nn.xw_plus_b(fc1, W_c2, b_c2, name='scores')
+
     # store the latent representation
     z = current_input    
+    
     encoder.reverse()
     shapes.reverse()
-    # %%
-    # Build the decoder using the same weights
-    for layer_i, shape in enumerate(shapes):
-        W_enc = encoder[layer_i]
-        b_enc = tf.Variable(tf.zeros([W_enc.get_shape().as_list()[2]]))
-        #theta_A.append(W_enc)
-        theta_A.append(b_enc)
-        output = tf.nn.relu(tf.add(
-            tf.nn.conv2d_transpose(
-                current_input, W_enc,
-                tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
-                strides=[1, 2, 2, 1], padding='SAME'), b_enc))
-        current_input = output
-
-    y = tf.nn.tanh(current_input)
+    
+    with tf.name_scope("Decoder"):
+        for layer_i, shape in enumerate(shapes):
+            W_enc = encoder[layer_i]
+            W = tf.Variable(tf.random_uniform(W_enc.get_shape().as_list(),-1.0 / math.sqrt(n_input),1.0 / math.sqrt(n_input)))                
+            theta_A.append(W)
+            deconv = tf.nn.conv2d_transpose(current_input, W,
+                                            tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
+                                            strides=[1, 2, 2, 1], padding='SAME')
+            deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
+            output = tf.nn.relu(deconv)
+            current_input = output
+        y = tf.nn.sigmoid(current_input)
     
     #enc_noise = random_laplace(shape=tf.shape(z),sensitivity=1.0,epsilon=0.2)
-    enc_noise =tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=1.0, dtype=tf.float32)
-    z = tf.add(z,enc_noise)
+    #enc_noise =tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=1.0, dtype=tf.float32)
+    #z = tf.add(z,enc_noise)
     current_infer = z
-    
-    for layer_i, shape in enumerate(shapes):
-        W_enc = encoder[layer_i]
-        W = tf.Variable(tf.random_uniform(W_enc.get_shape().as_list(),-1.0 / math.sqrt(n_input),
-                                          1.0 / math.sqrt(n_input)))
-        b = tf.Variable(tf.zeros([W_enc.get_shape().as_list()[2]]))
-        theta_G.append(W)
-        theta_G.append(b)
-        output = tf.nn.relu(tf.add(
-            tf.nn.conv2d_transpose(
-                current_infer, W,
-                tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
-                strides=[1, 2, 2, 1], padding='SAME'), b))
-        current_infer = output
-    g = tf.nn.tanh(current_infer)
+    with tf.name_scope("Generator"):
+        for layer_i, shape in enumerate(shapes):
+            W_enc = encoder[layer_i]
+            W = tf.Variable(tf.random_uniform(W_enc.get_shape().as_list(),-1.0 / math.sqrt(n_input),1.0 / math.sqrt(n_input)))
+            theta_G.append(W)
+            deconv = tf.nn.conv2d_transpose(current_infer, W,
+                                            tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
+                                            strides=[1, 2, 2, 1], padding='SAME')
+            deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
+            output = tf.nn.relu(deconv)
+            current_infer = output
+        g = tf.nn.tanh(current_infer)
+
     return y, g, scores
 
 
@@ -173,7 +191,7 @@ D_fc1 = tf.Variable(xavier_init([1024, 1024]))
 D_b1 = tf.Variable(tf.zeros(shape=[1024]))
 D_fc2 = tf.Variable(xavier_init([1024, 1]))
 D_b2 = tf.Variable(tf.zeros(shape=[1]))
-theta_D = [D_W1, D_W2,D_W3,D_fc1,D_b1,D_fc2,D_b2]
+theta_D = [D_W1, D_W2,D_W3,D_W4,D_fc1,D_b1,D_fc2,D_b2]
 
 def discriminator(x):
     if len(x.get_shape()) == 3:
@@ -187,30 +205,31 @@ def discriminator(x):
         x_tensor = x
     else:
         raise ValueError('Unsupported input dimensions')   
-   
-    conv1 = tf.nn.conv2d(x_tensor, D_W1, strides=[1,2,2,1],padding='SAME')
-    conv1 = tf.contrib.layers.batch_norm(conv1,center=True, scale=True,is_training=True)
-    h1 = tf.nn.leaky_relu(conv1,0.2)
+    with tf.name_scope("Discriminator"):
+        conv1 = tf.nn.conv2d(x_tensor, D_W1, strides=[1,2,2,1],padding='SAME')
+        conv1 = tf.contrib.layers.batch_norm(conv1,center=True, scale=True,is_training=True)
+        h1 = tf.nn.leaky_relu(conv1,0.2)
     
-    conv2 = tf.nn.conv2d(h1, D_W2, strides=[1,2,2,1],padding='SAME')
-    conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
-    h2 = tf.nn.leaky_relu(conv2, 0.2)
+        conv2 = tf.nn.conv2d(h1, D_W2, strides=[1,2,2,1],padding='SAME')
+        conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
+        h2 = tf.nn.leaky_relu(conv2, 0.2)
     
-    conv3 = tf.nn.conv2d(h2, D_W3, strides=[1,2,2,1],padding='SAME')
-    conv3 = tf.contrib.layers.batch_norm(conv3,center=True, scale=True,is_training=True)
-    h3 = tf.nn.leaky_relu(conv3, 0.2)
+        conv3 = tf.nn.conv2d(h2, D_W3, strides=[1,2,2,1],padding='SAME')
+        conv3 = tf.contrib.layers.batch_norm(conv3,center=True, scale=True,is_training=True)
+        h3 = tf.nn.leaky_relu(conv3, 0.2)
     
-    conv4 = tf.nn.conv2d(h3, D_W4, strides=[1,2,2,1],padding='SAME')
-    conv4 = tf.contrib.layers.batch_norm(conv4,center=True, scale=True,is_training=True)
-    h4 = tf.nn.leaky_relu(conv4, 0.2)
+        conv4 = tf.nn.conv2d(h3, D_W4, strides=[1,2,2,1],padding='SAME')
+        conv4 = tf.contrib.layers.batch_norm(conv4,center=True, scale=True,is_training=True)
+        h4 = tf.nn.leaky_relu(conv4, 0.2)
     
-    h4 = tf.layers.flatten(h4)
+        h4 = tf.layers.flatten(h4)
 
-    h4 = tf.matmul(h4, D_fc1) + D_b1
-    h4 = tf.contrib.layers.batch_norm(h4,center=True, scale=True,is_training=True)
-    h5 = tf.nn.leaky_relu(h4, 0.2)
+        h4 = tf.matmul(h4, D_fc1) + D_b1
+        h4 = tf.contrib.layers.batch_norm(h4,center=True, scale=True,is_training=True)
+        h5 = tf.nn.leaky_relu(h4, 0.2)
     
-    d =  tf.matmul(h5, D_fc2) + D_b2
+        d =  tf.matmul(h5, D_fc2) + D_b2
+        
     return d
 
 
