@@ -161,6 +161,7 @@ def autoencoder(x):
             deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
             output = tf.nn.relu(deconv)
             current_input = output
+        logits = current_input    
         y = tf.nn.sigmoid(current_input)
     
     #enc_noise = random_laplace(shape=tf.shape(z),sensitivity=1.0,epsilon=0.2)
@@ -180,7 +181,7 @@ def autoencoder(x):
             current_infer = output
         g = tf.nn.tanh(current_infer)
 
-    return y, g, scores
+    return y, g, scores, logits
 
 
 D_W1 = tf.Variable(xavier_init([5,5,3,32]), name='W1')
@@ -234,7 +235,7 @@ def discriminator(x):
 
 
 # Prediction
-A_sample, G_sample, scores = autoencoder(X)
+A_sample, G_sample, scores, logits = autoencoder(X)
 
 D_real = discriminator(X)
 D_fake = discriminator(G_sample)
@@ -244,7 +245,7 @@ A_true_flat = tf.reshape(X, [-1,32,32,3])
 global_step = tf.Variable(0, name="global_step", trainable=False)
 
 D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
-A_loss = tf.reduce_mean(tf.pow(A_true_flat -A_sample, 2))
+A_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_loss_with_logits_v2(labels=A_true_flat,logits=logits))
 G_loss = -tf.reduce_mean(D_fake)
 C_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=Y,logits=scores))
 
