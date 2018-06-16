@@ -119,12 +119,15 @@ def autoencoder(x):
         for layer_i, n_output in enumerate(n_filters[1:]):
             n_input = current_input.get_shape().as_list()[3]
             shapes.append(current_input.get_shape().as_list())
-            W = tf.Variable(tf.random_uniform([filter_sizes[layer_i],filter_sizes[layer_i],n_input, n_output],
-                                              -1.0 / math.sqrt(n_input),1.0 / math.sqrt(n_input)))
+            W = tf.Variable(xavier_init([filter_sizes[layer_i],filter_sizes[layer_i],n_input, n_output]))
+            b = tf.Variable(tf.zeros([n_output]))
             theta_A.append(W)
             theta_C.append(W)
+            theta_A.append(b)
+            theta_C.append(b)
             encoder.append(W)
             conv = tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME')
+            conv = tf.add(conv,b)
             conv = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=True)
             output = tf.nn.relu(conv)
             current_input = output
@@ -132,14 +135,14 @@ def autoencoder(x):
     with tf.name_scope("Softmax_Classifier"):
         h = tf.layers.flatten(current_input)
         W_c1 = tf.Variable(xavier_init([1024,1024]))
-        b_c1 = tf.Variable(tf.constant(0.1, shape=[1024]), name='b')
+        b_c1 = tf.Variable(tf.zeros([1024]), name='b')
         theta_C.append(W_c1)
         theta_C.append(b_c1)
         fc1 = tf.nn.xw_plus_b(h, W_c1, b_c1, name='scores')
         fc1 = tf.contrib.layers.batch_norm(fc1,center=True, scale=True,is_training=True)
         fc1 = tf.nn.relu(fc1)
         W_c2 = tf.Variable(xavier_init([1024,10]))
-        b_c2 = tf.Variable(tf.constant(0.1, shape=[10]), name='b')
+        b_c2 = tf.Variable(tf.zeros([10]), name='b')
         theta_C.append(W_c2)
         theta_C.append(b_c2)
         scores = tf.nn.xw_plus_b(fc1, W_c2, b_c2, name='scores')
@@ -153,11 +156,14 @@ def autoencoder(x):
     with tf.name_scope("Decoder"):
         for layer_i, shape in enumerate(shapes):
             W_enc = encoder[layer_i]
-            W = tf.Variable(tf.random_uniform(W_enc.get_shape().as_list(),-1.0 / math.sqrt(n_input),1.0 / math.sqrt(n_input)))                
+            W = tf.Variable(xavier_init(W_enc.get_shape().as_list()))
+            b = tf.Variable(tf.zeros(W_enc.get_shape().as_list()[2]))           
             theta_A.append(W)
+            theta_A.append(b)   
             deconv = tf.nn.conv2d_transpose(current_input, W,
                                             tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                                             strides=[1, 2, 2, 1], padding='SAME')
+            deconv = tf.add(deconv,b)
             deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
             if layer_i == 4:
                 output = tf.nn.sigmoid(deconv)
@@ -174,11 +180,14 @@ def autoencoder(x):
     with tf.name_scope("Generator"):
         for layer_i, shape in enumerate(shapes):
             W_enc = encoder[layer_i]
-            W = tf.Variable(tf.random_uniform(W_enc.get_shape().as_list(),-1.0 / math.sqrt(n_input),1.0 / math.sqrt(n_input)))
+            W = tf.Variable(xavier_init(W_enc.get_shape().as_list()))
+            b = tf.Variable(tf.zeros(W_enc.get_shape().as_list()[2]))           
             theta_G.append(W)
+            theta_G.append(b)     
             deconv = tf.nn.conv2d_transpose(current_infer, W,
                                             tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                                             strides=[1, 2, 2, 1], padding='SAME')
+            deconv = tf.add(deconv,b)
             deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
             if layer_i == 4:
                 output = tf.nn.tanh(deconv)
@@ -190,15 +199,7 @@ def autoencoder(x):
     return y, g, scores, logits
 
 
-D_W1 = tf.Variable(xavier_init([5,5,3,32]), name='W1')
-D_W2 = tf.Variable(xavier_init([5,5,32,64]), name='W2')
-D_W3 = tf.Variable(xavier_init([5,5,64,128]), name='W3')
-D_W4 = tf.Variable(xavier_init([5,5,128,256]), name='W4')
-D_fc1 = tf.Variable(xavier_init([1024, 1024]))
-D_b1 = tf.Variable(tf.zeros(shape=[1024]))
-D_fc2 = tf.Variable(xavier_init([1024, 1]))
-D_b2 = tf.Variable(tf.zeros(shape=[1]))
-theta_D = [D_W1, D_W2,D_W3,D_W4,D_fc1,D_b1,D_fc2,D_b2]
+theta_D = []
 
 def discriminator(x):
     if len(x.get_shape()) == 3:
@@ -213,29 +214,64 @@ def discriminator(x):
     else:
         raise ValueError('Unsupported input dimensions')   
     with tf.name_scope("Discriminator"):
-        conv1 = tf.nn.conv2d(x_tensor, D_W1, strides=[1,2,2,1],padding='SAME')
+        W = tf.Variable(xavier_init([5,5,3,32]), name='W1')
+        b = tf.Variable(tf.zeros(shape=[32]), name='b1')
+        theta_D.append(W)
+        theta_D.append(b)
+        conv1 = tf.nn.conv2d(x_tensor, W, strides=[1,2,2,1],padding='SAME')
+        conv1 = tf.add(conv1,b)
         conv1 = tf.contrib.layers.batch_norm(conv1,center=True, scale=True,is_training=True)
-        h1 = tf.nn.leaky_relu(conv1,0.2)
+        h1 = tf.nn.leaky_relu(conv1,0.01)
     
-        conv2 = tf.nn.conv2d(h1, D_W2, strides=[1,2,2,1],padding='SAME')
+        W = tf.Variable(xavier_init([5,5,32,64]), name='W2')
+        b = tf.Variable(tf.zeros(shape=[64]), name='b2')
+        theta_D.append(W)
+        theta_D.append(b)
+        conv2 = tf.nn.conv2d(h1, W, strides=[1,2,2,1],padding='SAME')
+        conv2 = tf.add(conv2,b)
         conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
-        h2 = tf.nn.leaky_relu(conv2, 0.2)
+        h2 = tf.nn.leaky_relu(conv2, 0.01)
     
-        conv3 = tf.nn.conv2d(h2, D_W3, strides=[1,2,2,1],padding='SAME')
+        W = tf.Variable(xavier_init([5,5,64,128]), name='W3')
+        b = tf.Variable(tf.zeros(shape=[128]), name='b3')
+        theta_D.append(W)
+        theta_D.append(b)
+        conv3 = tf.nn.conv2d(h2, W, strides=[1,2,2,1],padding='SAME')
+        conv3 = tf.add(conv3,b)
         conv3 = tf.contrib.layers.batch_norm(conv3,center=True, scale=True,is_training=True)
-        h3 = tf.nn.leaky_relu(conv3, 0.2)
+        h3 = tf.nn.leaky_relu(conv3, 0.01)
     
-        conv4 = tf.nn.conv2d(h3, D_W4, strides=[1,2,2,1],padding='SAME')
+        W = tf.Variable(xavier_init([5,5,128,256]), name='W4')
+        b = tf.Variable(tf.zeros(shape=[256]), name='b4')
+        theta_D.append(W)
+        theta_D.append(b)
+        conv4 = tf.nn.conv2d(h3, W, strides=[1,2,2,1],padding='SAME')
+        conv4 = tf.add(conv4,b)
         conv4 = tf.contrib.layers.batch_norm(conv4,center=True, scale=True,is_training=True)
-        h4 = tf.nn.leaky_relu(conv4, 0.2)
-    
-        h4 = tf.layers.flatten(h4)
+        h4 = tf.nn.leaky_relu(conv4, 0.01)
 
-        h4 = tf.matmul(h4, D_fc1) + D_b1
-        h4 = tf.contrib.layers.batch_norm(h4,center=True, scale=True,is_training=True)
-        h5 = tf.nn.leaky_relu(h4, 0.2)
-    
-        d =  tf.matmul(h5, D_fc2) + D_b2
+        W = tf.Variable(xavier_init([5,5,256,512]), name='W5')
+        b = tf.Variable(tf.zeros(shape=[512]), name='b5')
+        theta_D.append(W)
+        theta_D.append(b)
+        conv5 = tf.nn.conv2d(h4, W, strides=[1,2,2,1],padding='SAME')
+        conv5 = tf.add(conv5,b)
+        conv5 = tf.contrib.layers.batch_norm(conv5,center=True, scale=True,is_training=True)
+        h5 = tf.nn.leaky_relu(conv5, 0.01)
+        
+        h5 = tf.layers.flatten(h5)
+        W = tf.Variable(xavier_init([512, 512]))
+        b = tf.Variable(tf.zeros(shape=[512]))
+        theta_D.append(W)
+        theta_D.append(b)        
+        h5 = tf.matmul(h5, W) + b
+        h5 = tf.contrib.layers.batch_norm(h5,center=True, scale=True,is_training=True)
+        h6 = tf.nn.leaky_relu(h5, 0.01)
+        W = tf.Variable(xavier_init([512, 1]))
+        b = tf.Variable(tf.zeros(shape=[1]))
+        theta_D.append(W)
+        theta_D.append(b)       
+        d =  tf.matmul(h6, W) + b
         
     return d
 
