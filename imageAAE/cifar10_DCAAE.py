@@ -245,7 +245,7 @@ A_true_flat = tf.reshape(X, [-1,32,32,3])
 global_step = tf.Variable(0, name="global_step", trainable=False)
 
 D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
-A_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_loss_with_logits_v2(labels=A_true_flat,logits=logits))
+A_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=A_true_flat,logits=logits))
 G_loss = -tf.reduce_mean(D_fake)
 C_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=Y,logits=scores))
 
