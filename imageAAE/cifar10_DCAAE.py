@@ -291,7 +291,9 @@ D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
 A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
 G_loss = -tf.reduce_mean(D_fake)
 C_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=Y,logits=scores))
-
+tf.summary.image('Original',A_true_flat)
+tf.summary.image('A_sample',A_sample)
+tf.summary.image('G_sample',G_sample)
 tf.summary.scalar('C_loss',C_loss)
 tf.summary.scalar('D_loss',D_loss)
 tf.summary.scalar('G_loss',G_loss)
@@ -303,12 +305,12 @@ update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D]
         
-num_batches_per_epoch = int((60000-1)/256) + 1
+num_batches_per_epoch = int((50000-1)/256) + 1
 
-learning_rate = tf.train.exponential_decay(1e-2, global_step,num_batches_per_epoch, 0.95, staircase=True)
+learning_rate = tf.train.exponential_decay(5e-3, global_step,num_batches_per_epoch, 0.95, staircase=True)
 with tf.control_dependencies(update_ops):
-    D_solver = tf.train.AdamOptimizer(learning_rate=1e-2).minimize(-D_loss, var_list=theta_D,global_step=global_step)
-    G_solver = tf.train.AdamOptimizer(learning_rate=1e-2).minimize(G_loss, var_list=theta_G,global_step=global_step)
+    D_solver = tf.train.AdamOptimizer(learning_rate=1e-3).minimize(-D_loss, var_list=theta_D,global_step=global_step)
+    G_solver = tf.train.AdamOptimizer(learning_rate=1e-3).minimize(G_loss, var_list=theta_G,global_step=global_step)
     A_solver = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(A_loss, var_list=theta_A,global_step=global_step)
     C_solver = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(C_loss, var_list=theta_C,global_step=global_step)
     
