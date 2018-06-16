@@ -124,10 +124,13 @@ def autoencoder(x):
                                             tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                                             strides=[1, 2, 2, 1], padding='SAME')
             deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
-            output = tf.nn.relu(deconv)
+            if layer_i == 4:
+                output = tf.nn.sigmoid(deconv)
+            else:
+                output = tf.nn.relu(deconv)
             current_input = output
-        logits = current_input    
-        y = tf.nn.tanh(current_input)
+        logits = deconv   
+        y = current_input
     
     #enc_noise = random_laplace(shape=tf.shape(z),sensitivity=1.0,epsilon=0.2)
     #enc_noise =tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=1.0, dtype=tf.float32)
@@ -142,9 +145,13 @@ def autoencoder(x):
                                             tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                                             strides=[1, 2, 2, 1], padding='SAME')
             deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
-            output = tf.nn.relu(deconv)
+            if layer_i == 4:
+                output = tf.nn.tanh(deconv)
+            else:
+                output = tf.nn.relu(deconv)
             current_infer = output
-        g = tf.nn.tanh(current_infer)
+        g = current_infer
+
 
     return y, g, scores, logits
 
