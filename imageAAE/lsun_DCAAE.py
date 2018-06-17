@@ -296,7 +296,7 @@ update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D]
         
-num_batches_per_epoch = int((50000-1)/256) + 1
+num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
 
 learning_rate = tf.train.exponential_decay(2e-4, global_step,num_batches_per_epoch, 0.95, staircase=True)
 with tf.control_dependencies(update_ops):
