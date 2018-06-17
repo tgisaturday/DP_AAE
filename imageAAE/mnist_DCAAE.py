@@ -51,6 +51,7 @@ rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
 X = tf.placeholder(tf.float32, shape=[None, X_dim])
 Y = tf.placeholder(tf.float32, [None, 10])
+N = tf.placeholder(tf.float32, [None,2,2,512])
 theta_A = []
 theta_G = []
 theta_C = []
@@ -140,7 +141,7 @@ def autoencoder(x):
     
     #enc_noise = random_laplace(shape=tf.shape(z),sensitivity=1.0,epsilon=0.2)
     #enc_noise =tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=1.0, dtype=tf.float32)
-    #z = tf.add(z,enc_noise)
+    z = tf.add(z,N)
     current_infer = z
     with tf.name_scope("Generator"):
         for layer_i, shape in enumerate(shapes):
@@ -281,17 +282,18 @@ with tf.Session() as sess:
     for it in range(1000000):
         for _ in range(5):
             X_mb, Y_mb = mnist.train.next_batch(mb_size)
-            _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
-            _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb,Y: Y_mb})
-            _, C_loss_curr = sess.run([C_solver, C_loss],feed_dict={X: X_mb,Y: Y_mb})
-        summary,_, G_loss_curr = sess.run([merged,G_solver, G_loss],feed_dict={X: X_mb,Y: Y_mb})
+            enc_noise = np.random.normal(0.0,1.0,[mb_size,2,2,512]).astype(np.float32) 
+            _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb, N: enc_noise})
+            _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb,Y: Y_mb, N: enc_noise})
+            _, C_loss_curr = sess.run([C_solver, C_loss],feed_dict={X: X_mb,Y: Y_mb, N: enc_noise})
+        summary,_, G_loss_curr = sess.run([merged,G_solver, G_loss],feed_dict={X: X_mb, Y: Y_mb, N: enc_noise})
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
         if it % 100 == 0:
             print('Iter: {}; A_loss: {:.4}; C_loss: {:.4}; D_loss: {:.4}; G_loss: {:.4};'.format(it,A_loss_curr,C_loss_curr, D_loss_curr,G_loss_curr))
 
         if it % 1000 == 0:
-            samples = sess.run(G_sample, feed_dict={X: X_mb})
+            samples = sess.run(G_sample, feed_dict={X: X_mb,N: enc_noise})
             samples_flat = tf.reshape(samples,[-1,784]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
             plt.savefig('dc_out_mnist/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
@@ -301,7 +303,8 @@ with tf.Session() as sess:
         if it% 100000 == 0:
             for ii in range(len_x_train//100):
                 xt_mb, y_mb = mnist.train.next_batch(100,shuffle=False)
-                samples = sess.run(G_sample, feed_dict={X: xt_mb})
+                enc_noise = np.random.normal(0.0,1.0,[100,2,2,512]).astype(np.float32) 
+                samples = sess.run(G_sample, feed_dict={X: xt_mb,N: enc_noise})
                 if ii == 0:
                     generated = samples
                     labels = y_mb
@@ -314,7 +317,8 @@ with tf.Session() as sess:
 
 for iii in range(len_x_train//100):
     xt_mb, y_mb = mnist.train.next_batch(100,shuffle=False)
-    samples = sess.run(G_sample, feed_dict={X: xt_mb})
+    enc_noise = np.random.normal(0.0,1.0,[100,2,2,512]).astype(np.float32)
+    samples = sess.run(G_sample, feed_dict={X: xt_mb,N: enc_noise})
     if iii == 0:
         generated = samples
         labels = y_mb
