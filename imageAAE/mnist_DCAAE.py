@@ -120,8 +120,8 @@ def autoencoder(x):
     shapes.reverse()
     with tf.name_scope("Decoder"):
         for layer_i, shape in enumerate(shapes):
-            W_enc = encoder[layer_i]
-            W = tf.Variable(xavier_init(W_enc.get_shape().as_list()))
+            W = encoder[layer_i]
+            #W = tf.Variable(xavier_init(W_enc.get_shape().as_list()))
             b = tf.Variable(tf.zeros(W.get_shape().as_list()[2]))           
             theta_A.append(W)
             theta_A.append(b)   
