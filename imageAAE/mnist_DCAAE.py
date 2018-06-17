@@ -253,10 +253,10 @@ num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
 
 learning_rate = tf.train.exponential_decay(2e-4, global_step,num_batches_per_epoch, 0.95, staircase=True)
 with tf.control_dependencies(update_ops):
-    D_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1 = 0.5).minimize(-D_loss, var_list=theta_D,global_step=global_step)
-    G_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1 = 0.5).minimize(G_loss, var_list=theta_G,global_step=global_step)
-    A_solver = tf.train.AdamOptimizer(learning_rate=learning_rate,beta1 = 0.5).minimize(A_loss, var_list=theta_A,global_step=global_step)
-    C_solver = tf.train.AdamOptimizer(learning_rate=learning_rate,beta1 = 0.5).minimize(C_loss, var_list=theta_C,global_step=global_step)
+    D_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1 = 0.5).minimize(-D_loss, global_step=global_step)
+    G_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1 = 0.5).minimize(G_loss, global_step=global_step)
+    A_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1 = 0.5).minimize(A_loss, global_step=global_step)
+    C_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1 = 0.5).minimize(C_loss, global_step=global_step)
     
 if not os.path.exists('dc_out_mnist/'):
     os.makedirs('dc_out_mnist/')
@@ -271,8 +271,8 @@ with tf.Session() as sess:
             X_mb, Y_mb = mnist.train.next_batch(mb_size)
             enc_noise = np.random.normal(0.0,1.0,[mb_size,2,2,512]).astype(np.float32) 
             _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb, N: enc_noise})
-            _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb,Y: Y_mb, N: enc_noise})
-            _, C_loss_curr = sess.run([C_solver, C_loss],feed_dict={X: X_mb,Y: Y_mb, N: enc_noise})
+        _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb,Y: Y_mb, N: enc_noise})
+        _, C_loss_curr = sess.run([C_solver, C_loss],feed_dict={X: X_mb,Y: Y_mb, N: enc_noise})
         summary,_, G_loss_curr = sess.run([merged,G_solver, G_loss],feed_dict={X: X_mb, Y: Y_mb, N: enc_noise})
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
