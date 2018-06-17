@@ -26,7 +26,7 @@ def random_laplace(shape,sensitivity, epsilon):
     rand_lap= - (sensitivity/epsilon)*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
     return tf.clip_by_norm(tf.clip_by_value(rand_lap, -3.0,3.0),sensitivity)
 
-mb_size = 256
+mb_size = 64
 X_dim = 4096
 len_x_train = 50000
 
@@ -96,7 +96,7 @@ def xavier_init(size):
 def autoencoder(x):
     input_shape=[None, 64, 64, 3]
     n_filters=[3, 128, 256, 512, 1024]
-    filter_sizes=[5, 5, 5, 5]
+    filter_sizes=[5, 5, 5, 5, 5]
     
     if len(x.get_shape()) == 3:
         x_dim = np.sqrt(x.get_shape().as_list()[1])
@@ -165,7 +165,7 @@ def autoencoder(x):
                                             strides=[1, 2, 2, 1], padding='SAME')
             deconv = tf.add(deconv,b)
             deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
-            if layer_i == 2:
+            if layer_i == 3:
                 output = tf.nn.sigmoid(deconv)
             else:
                 output = tf.nn.relu(deconv)
@@ -189,7 +189,7 @@ def autoencoder(x):
                                             strides=[1, 2, 2, 1], padding='SAME')
             deconv = tf.add(deconv,b)
             deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
-            if layer_i == 2:
+            if layer_i == 3:
                 output = tf.nn.tanh(deconv)
             else:
                 output = tf.nn.relu(deconv)
