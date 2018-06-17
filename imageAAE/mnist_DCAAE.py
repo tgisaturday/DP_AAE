@@ -95,7 +95,7 @@ def autoencoder(x):
             conv = tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME')
             conv = tf.add(conv,b)            
             conv = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=True)
-            output = tf.nn.relu(conv)
+            output = tf.nn.leaky_relu(conv)
             current_input = output
         
     with tf.name_scope("Softmax_Classifier"):
@@ -131,10 +131,7 @@ def autoencoder(x):
                                             strides=[1, 2, 2, 1], padding='SAME')
             deconv = tf.add(deconv,b)
             deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
-            if layer_i == 3:
-                output = tf.nn.sigmoid(deconv)
-            else:
-                output = tf.nn.relu(deconv)
+            output = tf.nn.leaky_relu(deconv)
             current_input = output
         logits = deconv   
         y = current_input
@@ -245,7 +242,7 @@ global_step = tf.Variable(0, name="global_step", trainable=False)
 
 D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
 #A_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=A_true_flat,logits=logits))
-A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
+A_loss = tf.reduce_sum(tf.pow(A_true_flat - A_sample, 2))
 G_loss = -tf.reduce_mean(D_fake)
 C_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=Y,logits=scores))
 tf.summary.image('Original',A_true_flat)
