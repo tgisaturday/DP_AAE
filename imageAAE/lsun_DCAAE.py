@@ -27,7 +27,7 @@ def random_laplace(shape,sensitivity, epsilon):
     return tf.clip_by_norm(tf.clip_by_value(rand_lap, -3.0,3.0),sensitivity)
 
 mb_size = 256
-X_dim = 1024
+X_dim = 4096
 len_x_train = 50000
 
 def next_batch(num, data, labels,shuffle=True):
@@ -66,7 +66,7 @@ def plot(samples):
         ax.set_xticklabels([])
         ax.set_yticklabels([])
         ax.set_aspect('equal')
-        img = sample.reshape(32, 32,3)
+        img = sample.reshape(64, 64,3)
         plt.imshow(toimage(img),interpolation='nearest')
 
     return fig
@@ -74,7 +74,7 @@ def plot(samples):
 initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
-X = tf.placeholder(tf.float32, shape=[None, 32, 32, 3])
+X = tf.placeholder(tf.float32, shape=[None, 64, 64, 3])
 Y = tf.placeholder(tf.float32, [None, 10])
 
 (x_train, y_train), (x_test, y_test) = load_data()
@@ -94,8 +94,8 @@ def xavier_init(size):
     return tf.random_normal(shape=size, stddev=xavier_stddev)
 
 def autoencoder(x):
-    input_shape=[None, 32, 32, 3]
-    n_filters=[3, 128, 256, 512]
+    input_shape=[None, 64, 64, 3]
+    n_filters=[3, 128, 256, 512, 1024]
     filter_sizes=[5, 5, 5, 5]
     
     if len(x.get_shape()) == 3:
@@ -134,14 +134,14 @@ def autoencoder(x):
         
     with tf.name_scope("Softmax_Classifier"):
         h = tf.layers.flatten(current_input)
-        W_c1 = tf.Variable(xavier_init([8192,512]))
-        b_c1 = tf.Variable(tf.zeros([512]), name='b')
+        W_c1 = tf.Variable(xavier_init([16384,1024]))
+        b_c1 = tf.Variable(tf.zeros([1024]), name='b')
         theta_C.append(W_c1)
         theta_C.append(b_c1)
         fc1 = tf.nn.xw_plus_b(h, W_c1, b_c1, name='scores')
         fc1 = tf.contrib.layers.batch_norm(fc1,center=True, scale=True,is_training=True)
         fc1 = tf.nn.relu(fc1)
-        W_c2 = tf.Variable(xavier_init([512,10]))
+        W_c2 = tf.Variable(xavier_init([1024,10]))
         b_c2 = tf.Variable(tf.zeros([10]), name='b')
         theta_C.append(W_c2)
         theta_C.append(b_c2)
@@ -208,7 +208,7 @@ def discriminator(x):
             raise ValueError('Unsupported input dimensions')
         x_dim = int(x_dim)
         x_tensor = tf.reshape(
-            x, [-1, 32, 32, 3])
+            x, [-1, 64, 64, 3])
     elif len(x.get_shape()) == 4:
         x_tensor = x
     else:
@@ -241,24 +241,24 @@ def discriminator(x):
         conv3 = tf.contrib.layers.batch_norm(conv3,center=True, scale=True,is_training=True)
         h3 = tf.nn.leaky_relu(conv3, 0.2)
     
-        #W = tf.Variable(xavier_init([5,5,512,1024]), name='W4')
-        #b = tf.Variable(tf.zeros(shape=[1024]), name='b4')
-        #theta_D.append(W)
-        #theta_D.append(b)
-        #conv4 = tf.nn.conv2d(h3, W, strides=[1,2,2,1],padding='SAME')
-        #conv4 = tf.add(conv4,b)
-        #conv4 = tf.contrib.layers.batch_norm(conv4,center=True, scale=True,is_training=True)
-        #h4 = tf.nn.leaky_relu(conv4, 0.2)
+        W = tf.Variable(xavier_init([5,5,512,1024]), name='W4')
+        b = tf.Variable(tf.zeros(shape=[1024]), name='b4')
+        theta_D.append(W)
+        theta_D.append(b)
+        conv4 = tf.nn.conv2d(h3, W, strides=[1,2,2,1],padding='SAME')
+        conv4 = tf.add(conv4,b)
+        conv4 = tf.contrib.layers.batch_norm(conv4,center=True, scale=True,is_training=True)
+        h4 = tf.nn.leaky_relu(conv4, 0.2)
         
-        h5 = tf.layers.flatten(h3)
-        W = tf.Variable(xavier_init([8192, 512]))
-        b = tf.Variable(tf.zeros(shape=[512]))
+        h5 = tf.layers.flatten(h4)
+        W = tf.Variable(xavier_init([16384, 1024]))
+        b = tf.Variable(tf.zeros(shape=[1024]))
         theta_D.append(W)
         theta_D.append(b)        
         h5 = tf.matmul(h5, W) + b
         h5 = tf.contrib.layers.batch_norm(h5,center=True, scale=True,is_training=True)
         h6 = tf.nn.leaky_relu(h5, 0.2)
-        W = tf.Variable(xavier_init([512, 1]))
+        W = tf.Variable(xavier_init([1024, 1]))
         b = tf.Variable(tf.zeros(shape=[1]))
         theta_D.append(W)
         theta_D.append(b)       
@@ -273,7 +273,7 @@ A_sample, G_sample, scores, logits = autoencoder(X)
 D_real = discriminator(X)
 D_fake = discriminator(G_sample)
 
-A_true_flat = tf.reshape(X, [-1,32,32,3])
+A_true_flat = tf.reshape(X, [-1,64,64,3])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
 
@@ -305,12 +305,12 @@ with tf.control_dependencies(update_ops):
     A_solver = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(A_loss, var_list=theta_A,global_step=global_step)
     C_solver = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(C_loss, var_list=theta_C,global_step=global_step)
     
-if not os.path.exists('dc_out_cifar10/'):
+if not os.path.exists('dc_out_lsun/'):
     os.makedirs('dc_out_cifar10/')
-if not os.path.exists('generated_cifar10/'):
-    os.makedirs('generated_cifar10/')    
+if not os.path.exists('generated_lsun/'):
+    os.makedirs('generated_lsun/')    
 with tf.Session() as sess:
-    train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'cifar10',sess.graph)
+    train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'lsun',sess.graph)
     sess.run(tf.global_variables_initializer())
     i = 0
     for it in range(1000000):
@@ -329,7 +329,7 @@ with tf.Session() as sess:
             samples = sess.run(G_sample, feed_dict={X: X_mb})
             samples_flat = tf.reshape(samples,[-1,32,32,3]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
-            plt.savefig('dc_out_cifar10/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
+            plt.savefig('dc_out_lsun/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
             i += 1
             plt.close(fig)
    
@@ -344,8 +344,8 @@ with tf.Session() as sess:
                     np.append(generated,samples,axis=0)
                     np.append(labels,y_mb, axis=0)
                     
-            np.save('./generated_cifar10/generated_{}_image.npy'.format(str(it)), generated)
-            np.save('./generated_cifar10/generated_{}_label.npy'.format(str(it)), samples)
+            np.save('./generated_lsun/generated_{}_image.npy'.format(str(it)), generated)
+            np.save('./generated_lsun/generated_{}_label.npy'.format(str(it)), samples)
 
 for iii in range(len_x_train//100):
     xt_mb, y_mb = mnist.train.next_batch(100,shuffle=False)
@@ -357,7 +357,7 @@ for iii in range(len_x_train//100):
         np.append(generated,samples,axis=0)
         np.append(labels,y_mb, axis=0)
 
-np.save('./generated_cifar10/generated_{}_image.npy'.format(str(it)), generated)
-np.save('./generated_cifar10/generated_{}_label.npy'.format(str(it)), samples)
+np.save('./generated_lsun/generated_{}_image.npy'.format(str(it)), generated)
+np.save('./generated_lsun/generated_{}_label.npy'.format(str(it)), samples)
                 
                 

@@ -61,7 +61,7 @@ def xavier_init(size):
 def autoencoder(x):
     input_shape=[None, 28, 28, 1]
     n_filters=[1, 128, 256, 512]
-    filter_sizes=[4, 4, 4, 4]
+    filter_sizes=[5, 5, 5, 5]
     
     if len(x.get_shape()) == 2:
         x_dim = np.sqrt(x.get_shape().as_list()[1])
@@ -179,7 +179,7 @@ def discriminator(x):
     else:
         raise ValueError('Unsupported input dimensions')   
     with tf.name_scope("Discriminator"):
-        W = tf.Variable(xavier_init([4,4,1,128]), name='W1')
+        W = tf.Variable(xavier_init([5,5,1,128]), name='W1')
         b = tf.Variable(tf.zeros(shape=[128]), name='b1')
         theta_D.append(W)
         theta_D.append(b)
@@ -188,7 +188,7 @@ def discriminator(x):
         conv1 = tf.contrib.layers.batch_norm(conv1,center=True, scale=True,is_training=True)
         h1 = tf.nn.leaky_relu(conv1,0.2)
     
-        W = tf.Variable(xavier_init([4,4,128,256]), name='W2')
+        W = tf.Variable(xavier_init([5,5,128,256]), name='W2')
         b = tf.Variable(tf.zeros(shape=[256]), name='b2')
         theta_D.append(W)
         theta_D.append(b)
@@ -197,7 +197,7 @@ def discriminator(x):
         conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
         h2 = tf.nn.leaky_relu(conv2, 0.2)
     
-        W = tf.Variable(xavier_init([4,4,256,512]), name='W3')
+        W = tf.Variable(xavier_init([5,5,256,512]), name='W3')
         b = tf.Variable(tf.zeros(shape=[512]), name='b3')
         theta_D.append(W)
         theta_D.append(b)
