@@ -251,18 +251,11 @@ def discriminator(x):
         h4 = tf.nn.leaky_relu(conv4, 0.2)
         
         h5 = tf.layers.flatten(h4)
-        W = tf.Variable(xavier_init([16384, 1024]))
-        b = tf.Variable(tf.zeros(shape=[1024]))
-        theta_D.append(W)
-        theta_D.append(b)        
-        h5 = tf.matmul(h5, W) + b
-        h5 = tf.contrib.layers.batch_norm(h5,center=True, scale=True,is_training=True)
-        h6 = tf.nn.leaky_relu(h5, 0.2)
-        W = tf.Variable(xavier_init([1024, 1]))
+        W = tf.Variable(xavier_init([4096, 1]))
         b = tf.Variable(tf.zeros(shape=[1]))
         theta_D.append(W)
         theta_D.append(b)       
-        d =  tf.matmul(h6, W) + b
+        d =  tf.matmul(h5, W) + b
         
     return d
 
