@@ -120,8 +120,8 @@ def autoencoder(x):
     shapes.reverse()
     with tf.name_scope("Decoder"):
         for layer_i, shape in enumerate(shapes):
-            W = encoder[layer_i]
-            #W = tf.Variable(xavier_init(W_enc.get_shape().as_list()))
+            W_enc = encoder[layer_i]
+            W = tf.Variable(xavier_init(W_enc.get_shape().as_list()))
             b = tf.Variable(tf.zeros(W.get_shape().as_list()[2]))           
             theta_A.append(W)
             theta_A.append(b)   
@@ -255,8 +255,8 @@ learning_rate = tf.train.exponential_decay(2e-4, global_step,num_batches_per_epo
 with tf.control_dependencies(update_ops):
     D_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1 = 0.5).minimize(-D_loss,var_list=theta_D, global_step=global_step)
     G_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1 = 0.5).minimize(G_loss, global_step=global_step)
-    A_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1 = 0.5).minimize(A_loss, global_step=global_step)
-    C_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1 = 0.5).minimize(C_loss, global_step=global_step)
+    A_solver = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1 = 0.5).minimize(A_loss, global_step=global_step)
+    C_solver = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1 = 0.5).minimize(C_loss, global_step=global_step)
     
 if not os.path.exists('dc_out_mnist/'):
     os.makedirs('dc_out_mnist/')
