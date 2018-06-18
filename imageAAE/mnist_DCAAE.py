@@ -268,7 +268,7 @@ with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     i = 0
     for it in range(1000000):
-        X_mb, Y_mb = next_batch(mb_size, x_train, y_train_one_hot.eval())
+        X_mb, Y_mb = mnist.train.next_batch(mb_size)
         enc_noise = np.random.normal(0.0,1.0,[mb_size,2,2,512]).astype(np.float32) 
         _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb,Y: Y_mb, N: enc_noise})
         _, C_loss_curr = sess.run([C_solver, C_loss],feed_dict={X: X_mb,Y: Y_mb, N: enc_noise})        
