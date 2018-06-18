@@ -26,7 +26,7 @@ def random_laplace(shape,sensitivity, epsilon):
     rand_lap= - (sensitivity/epsilon)*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
     return tf.clip_by_norm(tf.clip_by_value(rand_lap, -3.0,3.0),sensitivity)
 
-mb_size = 128
+mb_size = 256
 X_dim = 1024
 len_x_train = 50000
 
@@ -150,7 +150,6 @@ def autoencoder(x):
 
     # store the latent representation
     z = current_input    
-    
     encoder.reverse()
     shapes.reverse()
     with tf.name_scope("Decoder"):
@@ -174,6 +173,7 @@ def autoencoder(x):
         y = current_input
     #enc_noise = random_laplace(shape=tf.shape(z),sensitivity=1.0,epsilon=0.2)
     #enc_noise =tf.random_normal(shape=tf.shape(z), mean=0.0, stddev=1.0, dtype=tf.float32)
+    #
     z = tf.add(z,N)
     current_infer = z
     with tf.name_scope("Generator"):
@@ -184,18 +184,19 @@ def autoencoder(x):
             theta_G.append(W)
             theta_G.append(b)     
             deconv = tf.nn.conv2d_transpose(current_infer, W,
-                                            tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
-                                            strides=[1, 2, 2, 1], padding='SAME')
+                                         tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
+                                           strides=[1, 2, 2, 1], padding='SAME')
             deconv = tf.add(deconv,b)
             deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
             if layer_i == 3:
-                output = tf.nn.tanh(deconv)
+                output = tf.nn.sigmoid(deconv)
             else:
                 output = tf.nn.relu(deconv)
             current_infer = output
         g = current_infer
+        g_logits = deconv
 
-    return y, g, scores, logits
+    return y, scores, logits, g
 
 
 theta_D = []
@@ -255,23 +256,26 @@ def discriminator(x):
         theta_D.append(W)
         theta_D.append(b)        
         d = tf.nn.xw_plus_b(h5, W, b)
-    return d
+    return tf.nn.sigmoid(d), d
 
 
 # Prediction
-A_sample, G_sample, scores, logits = autoencoder(X)
+A_sample, scores, logits,G_sample = autoencoder(X)
 
-D_real = discriminator(X)
-D_fake = discriminator(G_sample)
+D_real, D_real_logits = discriminator(X)
+D_fake, D_fake_logits = discriminator(G_sample)
 
 A_true_flat = tf.reshape(X, [-1,32,32,3])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
 
-D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
+#D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
 #A_loss = tf.reduce_mean(tf.nn.cross_entropy_with_logits(labels=A_true_flat,logits=A_sample))
+D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_real_logits, labels=tf.ones_like(D_real)))
+D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=tf.zeros_like(D_fake)))
+D_loss = D_loss_real + D_loss_fake
 A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
-G_loss = -tf.reduce_mean(D_fake)
+G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits, labels=tf.ones_like(D_fake)))
 C_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=Y,logits=scores))
 tf.summary.image('Original',A_true_flat)
 tf.summary.image('A_sample',A_sample)
@@ -284,15 +288,13 @@ tf.summary.scalar('A_loss',A_loss)
 merged = tf.summary.merge_all()
 
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-
-clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D]
         
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
 
-learning_rate = tf.train.exponential_decay(2e-4, global_step,num_batches_per_epoch, 0.95, staircase=True)
+learning_rate = tf.train.exponential_decay(1e-4, global_step,num_batches_per_epoch, 0.95, staircase=True)
 with tf.control_dependencies(update_ops):
-    D_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1 = 0.5).minimize(-D_loss,var_list=theta_D, global_step=global_step)
-    G_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1 = 0.5).minimize(G_loss, global_step=global_step)
+    D_solver = tf.train.AdamOptimizer(learning_rate=1e-4, beta1 = 0.5).minimize(D_loss, global_step=global_step)
+    G_solver = tf.train.AdamOptimizer(learning_rate=1e-4, beta1 = 0.5).minimize(G_loss, global_step=global_step)
     A_solver = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1 = 0.5).minimize(A_loss, global_step=global_step)
     C_solver = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1 = 0.5).minimize(C_loss, global_step=global_step)
     
@@ -305,12 +307,11 @@ with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     i = 0
     for it in range(1000000):
-        for _ in range(5):
-            X_mb, Y_mb = next_batch(mb_size, x_train, y_train_one_hot.eval())
-            enc_noise = np.random.normal(0.0,1.0,[mb_size,2,2,512]).astype(np.float32) 
-            _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb, N: enc_noise})
+        X_mb, Y_mb = next_batch(mb_size, x_train, y_train_one_hot.eval())
+        enc_noise = np.random.normal(0.0,1.0,[mb_size,2,2,512]).astype(np.float32) 
         _, A_loss_curr = sess.run([A_solver, A_loss],feed_dict={X: X_mb,Y: Y_mb, N: enc_noise})
-        _, C_loss_curr = sess.run([C_solver, C_loss],feed_dict={X: X_mb,Y: Y_mb, N: enc_noise})
+        _, C_loss_curr = sess.run([C_solver, C_loss],feed_dict={X: X_mb,Y: Y_mb, N: enc_noise})        
+        _, D_loss_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb, N: enc_noise})
         summary,_, G_loss_curr = sess.run([merged,G_solver, G_loss],feed_dict={X: X_mb, Y: Y_mb, N: enc_noise})
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
@@ -341,7 +342,7 @@ with tf.Session() as sess:
             np.save('./generated_cifar10/generated_{}_label.npy'.format(str(it)), samples)
 
 for iii in range(len_x_train//100):
-    xt_mb, y_mb = mnist.train.next_batch(100,shuffle=False)
+    xt_mb, y_mb = next_batch(100,x_train, y_train_one_hot.eval(),shuffle=False)
     enc_noise = np.random.normal(0.0,1.0,[100,2,2,512]).astype(np.float32)
     samples = sess.run(G_sample, feed_dict={X: xt_mb,N: enc_noise})
     if iii == 0:
