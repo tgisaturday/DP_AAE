@@ -227,10 +227,12 @@ D_fake, D_fake_logits = discriminator(G_sample)
 A_true_flat = tf.reshape(X, [-1,32,32,3])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
-
 reg_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
-D_loss = tf.reduce_mean(D_real_logits) - tf.reduce_mean(D_fake_logits) + reg_loss
-G_loss = -tf.reduce_mean(D_fake) + reg_loss
+D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_real_logits,labels=tf.ones_like(D_real)))
+D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits,labels=tf.zeros_like(D_fake)))
+D_loss = D_loss_real + D_loss_fake+reg_loss
+G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits,labels=tf.ones_like(D_fake))) + reg_loss
+
 
 tf.summary.image('Original',A_true_flat)
 tf.summary.image('G_sample',G_sample)
@@ -245,10 +247,9 @@ update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
 
 with tf.control_dependencies(update_ops):
-    D_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1 = 0.5).minimize(-D_loss, var_list=theta_D, global_step=global_step)
-    G_solver = tf.train.AdamOptimizer(learning_rate=2e-4, beta1 = 0.5).minimize(G_loss,var_list=theta_G, global_step=global_step)
-    
-clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
+    D_solver = tf.train.AdamOptimizer(learning_rate=2e-5).minimize(D_loss, var_list=theta_D, global_step=global_step)
+    G_solver = tf.train.AdamOptimizer(learning_rate=2e-4).minimize(G_loss,var_list=theta_G, global_step=global_step)
+
     
 if not os.path.exists('dc_out_cifar10/'):
     os.makedirs('dc_out_cifar10/')
@@ -259,12 +260,12 @@ with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     i = 0
     for it in range(1000000):
-        for _ in range(5):
+        for _ in range(2):
             X_mb, Y_mb = next_batch(mb_size, x_train, y_train_one_hot.eval())
             enc_noise = np.random.normal(0.0,1.0,[mb_size,2,2,512]).astype(np.float32) 
-            _, D_loss_curr, _ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb, N: enc_noise})
-        summary,_, G_loss_curr, reg_loss_curr = sess.run([merged,G_solver, G_loss, reg_loss],feed_dict={X: X_mb, N: enc_noise})
-
+            _, G_loss_curr, reg_loss_curr  = sess.run([G_solver, G_loss, reg_loss],feed_dict={X: X_mb, N: enc_noise})   
+        summary,_, D_loss_curr= sess.run([merged,D_solver, D_loss],feed_dict={X: X_mb, N: enc_noise})
+        
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
         
@@ -278,7 +279,7 @@ with tf.Session() as sess:
             plt.savefig('dc_out_cifar10/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
             i += 1
             plt.close(fig)
-   
+"""   
         if it% 100000 == 0:
             for ii in range(len_x_train//100):
                 xt_mb, y_mb = next_batch(100,x_train, y_train_one_hot.eval(),shuffle=False)
@@ -308,4 +309,4 @@ for iii in range(len_x_train//100):
 np.save('./generated_cifar10/generated_{}_image.npy'.format(str(it)), generated)
 np.save('./generated_cifar10/generated_{}_label.npy'.format(str(it)), samples)
                 
-                
+"""                
