@@ -26,7 +26,7 @@ def random_laplace(shape,sensitivity, epsilon):
     rand_lap= - (sensitivity/epsilon)*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
     return tf.clip_by_norm(tf.clip_by_value(rand_lap, -3.0,3.0),sensitivity)
 
-mb_size = 256
+mb_size = 128
 X_dim = 1024
 len_x_train = 50000
 

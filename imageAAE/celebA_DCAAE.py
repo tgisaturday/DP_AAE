@@ -10,7 +10,7 @@ import cv2
 from scipy.misc import toimage
 from glob import glob
 from random import shuffle
-from download import download_lsun
+from download import download_celeb_a
 from utils import *
 initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
@@ -79,8 +79,8 @@ rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
 X = tf.placeholder(tf.float32, shape=[None, 64, 64, 3])
 N = tf.placeholder(tf.float32, shape=[None,4,4,256])
-download_lsun("./data")
-data_files = glob(os.path.join("./data", "lsun", "*.jpg"))
+download_celeb_a("./data")
+data_files = glob(os.path.join("./data", "celebA", "*.jpg"))
 sample_files=shuffle(data_files)
 len_x_train = len(data_files)
 sample = [get_image(sample_file, FLAGS.image_size, is_crop=FLAGS.is_crop, resize_w=FLAGS.output_size, is_grayscale = 0) for sample_file in sample_files]
