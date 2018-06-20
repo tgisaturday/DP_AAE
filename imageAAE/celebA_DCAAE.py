@@ -167,7 +167,26 @@ def autoencoder(x):
 
 
 
-theta_D = []
+W1 = tf.Variable(xavier_init([3,3,3,32]))
+b1 = tf.Variable(tf.zeros(shape=[32]))
+W2 = tf.Variable(xavier_init([3,3,32,32]))
+b2 = tf.Variable(tf.zeros(shape=[32]))
+W3 = tf.Variable(xavier_init([3,3,32,64]))
+b3 = tf.Variable(tf.zeros(shape=[64]))
+W4 = tf.Variable(xavier_init([3,3,64,64]))
+b4 = tf.Variable(tf.zeros(shape=[64]))
+W5 = tf.Variable(xavier_init([3,3,64,128]))
+b5 = tf.Variable(tf.zeros(shape=[128]))
+W6 = tf.Variable(xavier_init([3,3,128,128]))
+b6 = tf.Variable(tf.zeros(shape=[128]))
+W7 = tf.Variable(xavier_init([3,3,128,256]))
+b7 = tf.Variable(tf.zeros(shape=[256]))    
+W8 = tf.Variable(xavier_init([3,3,256,256]))
+b8 = tf.Variable(tf.zeros(shape=[256]))
+W9 = tf.Variable(xavier_init([4096, 1]))
+b9 = tf.Variable(tf.zeros(shape=[1]))
+     
+theta_D = [W1,W2,W3,W4,W5,W6,W7,W8,W9,b1,b2,b3,b4,b5,b6,b7,b8,b9]
 
 def discriminator(x):
     if len(x.get_shape()) == 3:
@@ -182,120 +201,94 @@ def discriminator(x):
     else:
         raise ValueError('Unsupported input dimensions')   
     with tf.name_scope("Discriminator"):
-        W = tf.Variable(xavier_init([3,3,3,32]), name='W1')
-        b = tf.Variable(tf.zeros(shape=[32]))
-        theta_D.append(W)
-        theta_D.append(b)
-        conv1 = tf.nn.conv2d(x_tensor, W, strides=[1,1,1,1],padding='SAME')
-        conv1 = tf.add(conv1,b)
+        conv1 = tf.nn.conv2d(x_tensor, W1, strides=[1,1,1,1],padding='SAME')
+        conv1 = tf.add(conv1,b1)
         conv1 = tf.contrib.layers.batch_norm(conv1,center=True, scale=True,is_training=True)
         h1 = tf.nn.leaky_relu(conv1,0.2)
     
-        W = tf.Variable(xavier_init([3,3,32,32]))
-        b = tf.Variable(tf.zeros(shape=[32]))
-        theta_D.append(W)
-        theta_D.append(b)
-        conv2 = tf.nn.conv2d(h1, W, strides=[1,2,2,1],padding='SAME')
-        conv2 = tf.add(conv2,b)
+
+        conv2 = tf.nn.conv2d(h1, W2, strides=[1,2,2,1],padding='SAME')
+        conv2 = tf.add(conv2,b2)
         conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
         h2 = tf.nn.leaky_relu(conv2,0.2)
     
-        W = tf.Variable(xavier_init([3,3,32,64]))
-        b = tf.Variable(tf.zeros(shape=[64]))
-        theta_D.append(W)
-        theta_D.append(b)
-        conv3 = tf.nn.conv2d(h2, W, strides=[1,1,1,1],padding='SAME')
-        conv3 = tf.add(conv3,b)
+        conv3 = tf.nn.conv2d(h2, W3, strides=[1,1,1,1],padding='SAME')
+        conv3 = tf.add(conv3,b3)
         conv3 = tf.contrib.layers.batch_norm(conv3,center=True, scale=True,is_training=True)
         h3 = tf.nn.leaky_relu(conv3,0.2)
         
-        W = tf.Variable(xavier_init([3,3,64,64]))
-        b = tf.Variable(tf.zeros(shape=[64]))
-        theta_D.append(W)
-        theta_D.append(b)
-        conv4 = tf.nn.conv2d(h3, W, strides=[1,2,2,1],padding='SAME')
-        conv4 = tf.add(conv4,b)
+
+        conv4 = tf.nn.conv2d(h3, W4, strides=[1,2,2,1],padding='SAME')
+        conv4 = tf.add(conv4,b4)
         conv4 = tf.contrib.layers.batch_norm(conv4,center=True, scale=True,is_training=True)
         h4 = tf.nn.leaky_relu(conv4,0.2)
         
-        W = tf.Variable(xavier_init([3,3,64,128]))
-        b = tf.Variable(tf.zeros(shape=[128]))
-        theta_D.append(W)
-        theta_D.append(b)
-        conv5 = tf.nn.conv2d(h4, W, strides=[1,1,1,1],padding='SAME')
-        conv5 = tf.add(conv5,b)
+
+        conv5 = tf.nn.conv2d(h4, W5, strides=[1,1,1,1],padding='SAME')
+        conv5 = tf.add(conv5,b5)
         conv5 = tf.contrib.layers.batch_norm(conv5,center=True, scale=True,is_training=True)
         h5 = tf.nn.leaky_relu(conv5,0.2)
         
-        W = tf.Variable(xavier_init([3,3,128,128]))
-        b = tf.Variable(tf.zeros(shape=[128]))
-        theta_D.append(W)
-        theta_D.append(b)
-        conv6 = tf.nn.conv2d(h5, W, strides=[1,2,2,1],padding='SAME')
-        conv6 = tf.add(conv6,b)
+
+        conv6 = tf.nn.conv2d(h5, W6, strides=[1,2,2,1],padding='SAME')
+        conv6 = tf.add(conv6,b6)
         conv6 = tf.contrib.layers.batch_norm(conv6,center=True, scale=True,is_training=True)
         h6 = tf.nn.leaky_relu(conv6,0.2)
         
-        W = tf.Variable(xavier_init([3,3,128,256]))
-        b = tf.Variable(tf.zeros(shape=[256]))
-        theta_D.append(W)
-        theta_D.append(b)
-        conv7 = tf.nn.conv2d(h6, W, strides=[1,1,1,1],padding='SAME')
-        conv7 = tf.add(conv7,b)
+
+        conv7 = tf.nn.conv2d(h6, W7, strides=[1,1,1,1],padding='SAME')
+        conv7 = tf.add(conv7,b7)
         conv7 = tf.contrib.layers.batch_norm(conv7,center=True, scale=True,is_training=True)
         h7 = tf.nn.leaky_relu(conv7,0.2)
         
-        W = tf.Variable(xavier_init([3,3,256,256]))
-        b = tf.Variable(tf.zeros(shape=[256]))
-        theta_D.append(W)
-        theta_D.append(b)
-        conv8 = tf.nn.conv2d(h7, W, strides=[1,2,2,1],padding='SAME')
-        conv8 = tf.add(conv8,b)
+
+        conv8 = tf.nn.conv2d(h7, W8, strides=[1,2,2,1],padding='SAME')
+        conv8 = tf.add(conv8,b8)
         conv8 = tf.contrib.layers.batch_norm(conv8,center=True, scale=True,is_training=True)
         h9 = tf.nn.leaky_relu(conv8,0.2)
 
         h10 = tf.layers.flatten(h9)
-        W = tf.Variable(xavier_init([4096, 1]))
-        b = tf.Variable(tf.zeros(shape=[1]))
-        theta_D.append(W)
-        theta_D.append(b)        
-        d = tf.nn.xw_plus_b(h10, W, b)
-    return tf.nn.sigmoid(d), d
+        
+        d = tf.nn.xw_plus_b(h10, W9, b9)
+    return d
 
 logits,G_sample = autoencoder(X)
 
-D_real, D_real_logits = discriminator(X)
-D_fake, D_fake_logits = discriminator(G_sample)
+D_real_logits = discriminator(X)
+D_fake_logits = discriminator(G_sample)
 A_true_flat = tf.reshape(X, [-1,64,64,3])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
 reg_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
-#D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_real_logits,labels=tf.ones_like(D_real)))
-#D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits,labels=tf.zeros_like(D_fake)))
-#D_loss = D_loss_real + D_loss_fake+reg_loss
-D_loss = tf.reduce_mean(D_real_logits) - tf.reduce_mean(D_fake_logits)
+D_loss = tf.reduce_mean(D_fake_logits) - tf.reduce_mean(D_real_logits)
 G_loss = -tf.reduce_mean(D_fake_logits)+reg_loss
-#G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_fake_logits,labels=tf.ones_like(D_fake))) + reg_loss
 
-
+# Gradient Penalty
+epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
+X_hat = A_true_flat + epsilon * (G_sample - A_true_flat)
+D_X_hat = discriminator(X_hat)
+grad_D_X_hat = tf.gradients(D_X_hat, [X_hat])[0]
+red_idx = list(range(1, X_hat.shape.ndims))
+slopes = tf.sqrt(tf.reduce_sum(tf.square(grad_D_X_hat), reduction_indices=red_idx))
+gradient_penalty = tf.reduce_mean((slopes - 1.) ** 2)
+D_loss = D_loss + 10.0 * gradient_penalty
 
 tf.summary.image('Original',A_true_flat)
 tf.summary.image('G_sample',G_sample)
-tf.summary.scalar('D_loss',D_loss)
+tf.summary.scalar('D_loss', D_loss)
 tf.summary.scalar('G_loss',G_loss)
 tf.summary.scalar('reg_loss',reg_loss)
 
 merged = tf.summary.merge_all()
 
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-        
+
+
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
-learning_rate = tf.train.exponential_decay(1e-3, global_step,num_batches_per_epoch, 0.95, staircase=True)
+
 with tf.control_dependencies(update_ops):
-    D_solver = tf.train.AdamOptimizer(learning_rate=2e-4,beta1=0.5).minimize(-D_loss,var_list=theta_D, global_step=global_step)
-    G_solver = tf.train.AdamOptimizer(learning_rate=2e-4,beta1=0.5).minimize(G_loss,var_list=theta_G, global_step=global_step)
-    R_solver = tf.train.AdamOptimizer(learning_rate=1e-3,beta1=0.5).minimize(reg_loss,var_list=theta_G, global_step=global_step)
-clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D]
+    D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=theta_D, global_step=global_step)
+    G_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=theta_G, global_step=global_step)
 
 if not os.path.exists('dc_out_celebA/'):
     os.makedirs('dc_out_celebA/')
@@ -304,21 +297,18 @@ if not os.path.exists('generated_celebA/'):
 with tf.Session() as sess:
     train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'celebA',sess.graph)
     sess.run(tf.global_variables_initializer())
-    i = 0
+    i=0
     for it in range(1000000):
-        for _ in range(5):
-            X_mb = next_batch(mb_size, x_train)
-            enc_noise = np.random.normal(0.0,0.2,[mb_size,4,4,256]).astype(np.float32)   
-            _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb, N: enc_noise})
-        #X_mb, Y_mb = mnist.train.next_batch(mb_size)
-        #enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,32]).astype(np.float32) 
-        #_, reg_loss_curr  = sess.run([R_solver, reg_loss],feed_dict={X: X_mb, N: enc_noise})        
-        #X_mb, Y_mb = mnist.train.next_batch(mb_size)
-        #enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,32]).astype(np.float32) 
+        X_mb = next_batch(mb_size, x_train)
+        enc_noise = np.random.normal(0.0,0.2,[mb_size,4,4,256]).astype(np.float32)   
+        _, D_loss_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb, N: enc_noise})
+        X_mb = next_batch(mb_size, x_train)
+        enc_noise = np.random.normal(0.0,0.2,[mb_size,4,4,256]).astype(np.float32)  
         summary,_, G_loss_curr, reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb, N: enc_noise})
         
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
+
         
         if it % 100 == 0:
             print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; reg_loss: {:.4}'.format(it,D_loss_curr,G_loss_curr, reg_loss_curr))
