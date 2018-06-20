@@ -149,7 +149,7 @@ def autoencoder(x):
             deconv = tf.add(deconv,b)
             deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
             if layer_i == 3:
-                output = tf.nn.tanh(deconv)
+                output = tf.nn.sigmoid(deconv)
             else:
                 output = tf.nn.relu(deconv)
             current_infer = output
@@ -283,7 +283,7 @@ with tf.Session() as sess:
     for it in range(1000000):
         for _ in range(5):
             X_mb, Y_mb = next_batch(mb_size, x_train, y_train_one_hot.eval())
-            enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,128]).astype(np.float32)    
+            enc_noise = np.random.uniform(-0.2,0.2,[mb_size,4,4,128]).astype(np.float32)    
             _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb, N: enc_noise})
         #X_mb, Y_mb = mnist.train.next_batch(mb_size)
         #enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,32]).astype(np.float32) 
