@@ -99,7 +99,7 @@ def autoencoder(x):
     encoder.reverse()
     shapes.reverse()
         
-    current_infer = z + N
+    current_infer = tf.contrib.layers.batch_norm(tf.add(z,N),center=True, scale=True,is_training=True)
     with tf.name_scope("Generator"):
         for layer_i, shape in enumerate(shapes):
             W_enc = encoder[layer_i]
@@ -144,7 +144,7 @@ def discriminator(x):
         conv1 = tf.nn.conv2d(x_tensor, W, strides=[1,1,1,1],padding='SAME')
         conv1 = tf.add(conv1,b)
         conv1 = tf.contrib.layers.batch_norm(conv1,center=True, scale=True,is_training=True)
-        h1 = tf.nn.leaky_relu(conv1,0.01)
+        h1 = tf.nn.leaky_relu(conv1,0.2)
     
         W = tf.Variable(xavier_init([3,3,32,32]))
         b = tf.Variable(tf.zeros(shape=[32]))
@@ -153,7 +153,7 @@ def discriminator(x):
         conv2 = tf.nn.conv2d(h1, W, strides=[1,2,2,1],padding='SAME')
         conv2 = tf.add(conv2,b)
         conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
-        h2 = tf.nn.leaky_relu(conv2,0.01)
+        h2 = tf.nn.leaky_relu(conv2,0.2)
     
         W = tf.Variable(xavier_init([3,3,32,64]))
         b = tf.Variable(tf.zeros(shape=[64]))
@@ -162,7 +162,7 @@ def discriminator(x):
         conv3 = tf.nn.conv2d(h2, W, strides=[1,1,1,1],padding='SAME')
         conv3 = tf.add(conv3,b)
         conv3 = tf.contrib.layers.batch_norm(conv3,center=True, scale=True,is_training=True)
-        h3 = tf.nn.leaky_relu(conv3,0.01)
+        h3 = tf.nn.leaky_relu(conv3,0.2)
         
         W = tf.Variable(xavier_init([3,3,64,64]))
         b = tf.Variable(tf.zeros(shape=[64]))
@@ -171,7 +171,7 @@ def discriminator(x):
         conv4 = tf.nn.conv2d(h3, W, strides=[1,2,2,1],padding='SAME')
         conv4 = tf.add(conv4,b)
         conv4 = tf.contrib.layers.batch_norm(conv4,center=True, scale=True,is_training=True)
-        h4 = tf.nn.leaky_relu(conv4,0.01)
+        h4 = tf.nn.leaky_relu(conv4,0.2)
         
         W = tf.Variable(xavier_init([3,3,64,128]))
         b = tf.Variable(tf.zeros(shape=[128]))
@@ -180,7 +180,7 @@ def discriminator(x):
         conv5 = tf.nn.conv2d(h4, W, strides=[1,1,1,1],padding='SAME')
         conv5 = tf.add(conv5,b)
         conv5 = tf.contrib.layers.batch_norm(conv5,center=True, scale=True,is_training=True)
-        h5 = tf.nn.leaky_relu(conv5,0.01)
+        h5 = tf.nn.leaky_relu(conv5,0.2)
         
         W = tf.Variable(xavier_init([3,3,128,128]))
         b = tf.Variable(tf.zeros(shape=[128]))
@@ -189,7 +189,7 @@ def discriminator(x):
         conv6 = tf.nn.conv2d(h5, W, strides=[1,2,2,1],padding='SAME')
         conv6 = tf.add(conv6,b)
         conv6 = tf.contrib.layers.batch_norm(conv6,center=True, scale=True,is_training=True)
-        h6 = tf.nn.leaky_relu(conv6,0.01)
+        h6 = tf.nn.leaky_relu(conv6,0.2)
 
         h7 = tf.layers.flatten(h6)
         W = tf.Variable(xavier_init([2048, 1]))
