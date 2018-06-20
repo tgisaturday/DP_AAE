@@ -33,7 +33,7 @@ mb_size = 128
 X_dim = 4096
 
 
-def next_batch(num, data, labels,shuffle=True):
+def next_batch(num, data, shuffle=True):
     '''
     Return a total of `num` random samples and labels. 
     '''
@@ -42,9 +42,8 @@ def next_batch(num, data, labels,shuffle=True):
         np.random.shuffle(idx)
     idx = idx[:num]
     data_shuffle = [data[ i] for i in idx]
-    labels_shuffle = [labels[ i] for i in idx]
 
-    return np.asarray(data_shuffle), np.asarray(labels_shuffle)
+    return np.asarray(data_shuffle)
 
 def normalize(x):
     """
@@ -80,10 +79,9 @@ rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 X = tf.placeholder(tf.float32, shape=[None, 64, 64, 3])
 N = tf.placeholder(tf.float32, shape=[None,4,4,256])
 download_lsun("./data")
-data_files = glob(os.path.join("./data", "lsun", "*.jpg"))
-sample_files=shuffle(data_files)
+data_files = glob(os.path.join("./data/lsun/*.jpg"))
 len_x_train = len(data_files)
-sample = [get_image(sample_file, FLAGS.image_size, is_crop=FLAGS.is_crop, resize_w=FLAGS.output_size, is_grayscale = 0) for sample_file in sample_files]
+sample = [get_image(sample_file, 256, True, 64, is_grayscale = 0) for sample_file in data_files]
 sample_images = np.array(sample).astype(np.float32)  
 x_train = sample_images
 #(x_train, y_train), (x_test, y_test) = load_data()
@@ -91,7 +89,7 @@ x_train = sample_images
 #y_train = np.concatenate((y_train, y_test), axis=0)
 
 x_train = normalize(x_train)
-y_train_one_hot = tf.squeeze(tf.one_hot(y_train, 10),axis=1)
+
 
 
 theta_A = []
@@ -104,8 +102,8 @@ def xavier_init(size):
 
 def autoencoder(x):
     input_shape=[None, 64, 64, 3]
-    n_filters=[3, 64, 128, 256]
-    filter_sizes=[5, 5, 5, 5]
+    n_filters=[3, 32, 64, 128, 256]
+    filter_sizes=[5, 5, 5, 5, 5]
     
     if len(x.get_shape()) == 3:
         x_dim = np.sqrt(x.get_shape().as_list()[1])
@@ -184,8 +182,8 @@ def discriminator(x):
     else:
         raise ValueError('Unsupported input dimensions')   
     with tf.name_scope("Discriminator"):
-        W = tf.Variable(xavier_init([3,3,3,64]), name='W1')
-        b = tf.Variable(tf.zeros(shape=[64]))
+        W = tf.Variable(xavier_init([3,3,3,32]), name='W1')
+        b = tf.Variable(tf.zeros(shape=[32]))
         theta_D.append(W)
         theta_D.append(b)
         conv1 = tf.nn.conv2d(x_tensor, W, strides=[1,1,1,1],padding='SAME')
@@ -193,8 +191,8 @@ def discriminator(x):
         conv1 = tf.contrib.layers.batch_norm(conv1,center=True, scale=True,is_training=True)
         h1 = tf.nn.leaky_relu(conv1,0.2)
     
-        W = tf.Variable(xavier_init([3,3,64,64]))
-        b = tf.Variable(tf.zeros(shape=[64]))
+        W = tf.Variable(xavier_init([3,3,32,32]))
+        b = tf.Variable(tf.zeros(shape=[32]))
         theta_D.append(W)
         theta_D.append(b)
         conv2 = tf.nn.conv2d(h1, W, strides=[1,2,2,1],padding='SAME')
@@ -202,7 +200,7 @@ def discriminator(x):
         conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
         h2 = tf.nn.leaky_relu(conv2,0.2)
     
-        W = tf.Variable(xavier_init([3,3,64,128]))
+        W = tf.Variable(xavier_init([3,3,32,64]))
         b = tf.Variable(tf.zeros(shape=[64]))
         theta_D.append(W)
         theta_D.append(b)
@@ -211,8 +209,8 @@ def discriminator(x):
         conv3 = tf.contrib.layers.batch_norm(conv3,center=True, scale=True,is_training=True)
         h3 = tf.nn.leaky_relu(conv3,0.2)
         
-        W = tf.Variable(xavier_init([3,3,128,128]))
-        b = tf.Variable(tf.zeros(shape=[128]))
+        W = tf.Variable(xavier_init([3,3,64,64]))
+        b = tf.Variable(tf.zeros(shape=[64]))
         theta_D.append(W)
         theta_D.append(b)
         conv4 = tf.nn.conv2d(h3, W, strides=[1,2,2,1],padding='SAME')
@@ -220,8 +218,8 @@ def discriminator(x):
         conv4 = tf.contrib.layers.batch_norm(conv4,center=True, scale=True,is_training=True)
         h4 = tf.nn.leaky_relu(conv4,0.2)
         
-        W = tf.Variable(xavier_init([3,3,128,256]))
-        b = tf.Variable(tf.zeros(shape=[256]))
+        W = tf.Variable(xavier_init([3,3,64,128]))
+        b = tf.Variable(tf.zeros(shape=[128]))
         theta_D.append(W)
         theta_D.append(b)
         conv5 = tf.nn.conv2d(h4, W, strides=[1,1,1,1],padding='SAME')
@@ -229,21 +227,39 @@ def discriminator(x):
         conv5 = tf.contrib.layers.batch_norm(conv5,center=True, scale=True,is_training=True)
         h5 = tf.nn.leaky_relu(conv5,0.2)
         
-        W = tf.Variable(xavier_init([3,3,256,256]))
-        b = tf.Variable(tf.zeros(shape=[256]))
+        W = tf.Variable(xavier_init([3,3,128,128]))
+        b = tf.Variable(tf.zeros(shape=[128]))
         theta_D.append(W)
         theta_D.append(b)
         conv6 = tf.nn.conv2d(h5, W, strides=[1,2,2,1],padding='SAME')
         conv6 = tf.add(conv6,b)
         conv6 = tf.contrib.layers.batch_norm(conv6,center=True, scale=True,is_training=True)
         h6 = tf.nn.leaky_relu(conv6,0.2)
+        
+        W = tf.Variable(xavier_init([3,3,128,256]))
+        b = tf.Variable(tf.zeros(shape=[256]))
+        theta_D.append(W)
+        theta_D.append(b)
+        conv7 = tf.nn.conv2d(h6, W, strides=[1,1,1,1],padding='SAME')
+        conv7 = tf.add(conv7,b)
+        conv7 = tf.contrib.layers.batch_norm(conv7,center=True, scale=True,is_training=True)
+        h7 = tf.nn.leaky_relu(conv7,0.2)
+        
+        W = tf.Variable(xavier_init([3,3,256,256]))
+        b = tf.Variable(tf.zeros(shape=[256]))
+        theta_D.append(W)
+        theta_D.append(b)
+        conv8 = tf.nn.conv2d(h7, W, strides=[1,2,2,1],padding='SAME')
+        conv8 = tf.add(conv8,b)
+        conv8 = tf.contrib.layers.batch_norm(conv8,center=True, scale=True,is_training=True)
+        h9 = tf.nn.leaky_relu(conv8,0.2)
 
-        h7 = tf.layers.flatten(h6)
-        W = tf.Variable(xavier_init([2048, 1]))
+        h10 = tf.layers.flatten(h9)
+        W = tf.Variable(xavier_init([4096, 1]))
         b = tf.Variable(tf.zeros(shape=[1]))
         theta_D.append(W)
         theta_D.append(b)        
-        d = tf.nn.xw_plus_b(h7, W, b)
+        d = tf.nn.xw_plus_b(h10, W, b)
     return tf.nn.sigmoid(d), d
 
 logits,G_sample = autoencoder(X)
@@ -291,8 +307,8 @@ with tf.Session() as sess:
     i = 0
     for it in range(1000000):
         for _ in range(5):
-            X_mb, Y_mb = next_batch(mb_size, x_train, y_train_one_hot.eval())
-            enc_noise = np.random.uniform(-0.2,0.2,[mb_size,4,4,256]).astype(np.float32)   
+            X_mb = next_batch(mb_size, x_train)
+            enc_noise = np.random.normal(0.0,0.2,[mb_size,4,4,256]).astype(np.float32)   
             _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb, N: enc_noise})
         #X_mb, Y_mb = mnist.train.next_batch(mb_size)
         #enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,32]).astype(np.float32) 
@@ -311,7 +327,7 @@ with tf.Session() as sess:
             samples = sess.run(G_sample, feed_dict={X: X_mb,N: enc_noise})
             samples_flat = tf.reshape(samples,[-1,64,64,3]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
-            plt.savefig('dc_out_cifar10/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
+            plt.savefig('dc_out_lsun/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
             i += 1
             plt.close(fig)
 ''' 
