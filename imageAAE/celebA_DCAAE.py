@@ -12,6 +12,7 @@ from glob import glob
 from random import shuffle
 from download import download_celeb_a
 from utils import *
+from utils import add_noise_to_gradients
 initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
@@ -141,8 +142,8 @@ def autoencoder(x):
     
     encoder.reverse()
     shapes.reverse()
-        
-    current_infer = tf.contrib.layers.batch_norm(tf.add(z,N),center=True, scale=True,is_training=True)
+    current_infer=z    
+    #current_infer = tf.contrib.layers.batch_norm(tf.add(z,N),center=True, scale=True,is_training=True)
     with tf.name_scope("Generator"):
         for layer_i, shape in enumerate(shapes):
             W_enc = encoder[layer_i]
@@ -286,9 +287,16 @@ update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
 
+D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
+G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_G)
+D_grad_noised = add_noise_to_gradients(D_grads_and_vars,0.5)
+G_grad_noised = add_noise_to_gradients(G_grads_and_vars,0.5)
+
 with tf.control_dependencies(update_ops):
-    D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=theta_D, global_step=global_step)
-    G_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=theta_G, global_step=global_step)
+    D_solver = D_optimizer.apply_gradients(D_grad_noised, global_step=global_step)
+    G_solver = G_optimizer.apply_gradients(G_grad_noised, global_step=global_step)
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
 
 if not os.path.exists('dc_out_celebA/'):
