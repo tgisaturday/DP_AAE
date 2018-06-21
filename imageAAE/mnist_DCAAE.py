@@ -6,7 +6,7 @@ plt.switch_backend('agg')
 import matplotlib.gridspec as gridspec
 import os
 import math
-
+from utils import add_noise_to_gradients
 initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
@@ -99,7 +99,8 @@ def autoencoder(x):
     encoder.reverse()
     shapes.reverse()
         
-    current_infer = tf.contrib.layers.batch_norm(tf.add(z,N),center=True, scale=True,is_training=True)
+    #current_infer = tf.contrib.layers.batch_norm(tf.add(z,N),center=True, scale=True,is_training=True)
+    current_infer = z
     with tf.name_scope("Generator"):
         for layer_i, shape in enumerate(shapes):
             W_enc = encoder[layer_i]
@@ -200,7 +201,7 @@ global_step = tf.Variable(0, name="global_step", trainable=False)
 reg_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
 G_loss = -tf.reduce_mean(D_fake_logits)+reg_loss
-
+#G_loss = -tf.reduce_mean(D_fake_logits)
 # Gradient Penalty
 epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
 X_hat = A_true_flat + epsilon * (G_sample - A_true_flat)
@@ -223,10 +224,16 @@ update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
 
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
+D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
+G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_G)
+D_grad_noised = add_noise_to_gradients(D_grads_and_vars,0.2)
+G_grad_noised = add_noise_to_gradients(G_grads_and_vars,0.2)
 
 with tf.control_dependencies(update_ops):
-    D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=theta_D, global_step=global_step)
-    G_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=theta_G, global_step=global_step)
+    D_solver = D_optimizer.apply_gradients(D_grad_noised, global_step=global_step)
+    G_solver = G_optimizer.apply_gradients(G_grad_noised, global_step=global_step)
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D]    
 if not os.path.exists('dc_out_mnist/'):
     os.makedirs('dc_out_mnist/')
@@ -239,10 +246,10 @@ with tf.Session() as sess:
     for it in range(1000000):
         #for _ in range(5):
         X_mb, Y_mb = mnist.train.next_batch(mb_size)
-        enc_noise = np.random.normal(0.0,0.2,[mb_size,4,4,128]).astype(np.float32)     
+        enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,128]).astype(np.float32)     
         _, D_loss_curr,_ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb, N: enc_noise})
         X_mb, Y_mb = mnist.train.next_batch(mb_size)
-        enc_noise = np.random.normal(0.0,0.2,[mb_size,4,4,128]).astype(np.float32)        
+        enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,128]).astype(np.float32)        
         summary,_, G_loss_curr,reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb, N: enc_noise})
 
         

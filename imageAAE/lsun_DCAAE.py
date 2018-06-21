@@ -298,10 +298,10 @@ with tf.Session() as sess:
     for it in range(1000000):
         #for _ in range(5):
         X_mb = next_batch(mb_size, x_train)
-        enc_noise = np.random.normal(0.0,0.2,[mb_size,4,4,256]).astype(np.float32)   
+        enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,256]).astype(np.float32)   
         _, D_loss_curr,clip_D = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb, N: enc_noise})
         X_mb = next_batch(mb_size, x_train)
-        enc_noise = np.random.normal(0.0,0.2,[mb_size,4,4,256]).astype(np.float32)  
+        enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,256]).astype(np.float32)  
         summary,_, G_loss_curr, reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb, N: enc_noise})
         
         current_step = tf.train.global_step(sess, global_step)

@@ -1,7 +1,7 @@
 from random import shuffle
 import scipy.misc
 import numpy as np
-
+import tensorflow as tf
 def center_crop(x, crop_h, crop_w=None, resize_w=64):
     if crop_w is None:
         crop_w = crop_h
@@ -44,3 +44,20 @@ def get_image(image_path, image_size, is_crop=True, resize_w=64, is_grayscale = 
 
 # def save_images(images, size, image_path):
 #     return imsave(inverse_transform(images), size, image_path)
+
+def add_noise_to_gradients(grads_and_vars, epsilon, sparse_grads=False):
+    if not isinstance(grads_and_vars, list):
+        raise ValueError('`grads_and_vars` must be a list.')
+    gradients, variables = zip(*grads_and_vars)
+    noisy_gradients = []
+    for gradient in gradients:
+        if gradient is None:
+            noisy_gradients.append(None)
+            continue
+        if isinstance(gradient, tf.IndexedSlices):
+            gradient_shape = gradient.dense_shape
+        else:
+            gradient_shape = gradient.get_shape()
+            noise = np.random.laplace(0.0,epsilon,gradient_shape)
+            noisy_gradients.append(gradient + noise)
+    return zip(noisy_gradients,variables)
