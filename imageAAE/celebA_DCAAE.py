@@ -297,7 +297,7 @@ G_grad_noised = add_noise_to_gradients(G_grads_and_vars,0.5)
 with tf.control_dependencies(update_ops):
     D_solver = D_optimizer.apply_gradients(D_grad_noised, global_step=global_step)
     G_solver = G_optimizer.apply_gradients(G_grad_noised, global_step=global_step)
-clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
+#clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
 
 if not os.path.exists('dc_out_celebA/'):
     os.makedirs('dc_out_celebA/')
@@ -311,7 +311,7 @@ with tf.Session() as sess:
         #for _ in range(5):
         X_mb = next_batch(mb_size, x_train)
         enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,256]).astype(np.float32)   
-        _, D_loss_curr,_ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb, N: enc_noise})
+        _, D_loss_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb, N: enc_noise})
         X_mb = next_batch(mb_size, x_train)
         enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,256]).astype(np.float32)  
         summary,_, G_loss_curr, reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb, N: enc_noise})
