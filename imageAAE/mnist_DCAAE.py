@@ -29,6 +29,7 @@ X_dim = 784
 z_dim = 10
 h_dim = 128
 len_x_train = 60000
+epsilon=1.0
 mnist = input_data.read_data_sets('./data/MNIST_data', one_hot=True)
 
 def plot(samples):
@@ -228,8 +229,8 @@ D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
 G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
 D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
 G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_G)
-D_grad_noised = add_noise_to_gradients(D_grads_and_vars,0.2)
-G_grad_noised = add_noise_to_gradients(G_grads_and_vars,0.2)
+D_grad_noised = add_noise_to_gradients(D_grads_and_vars,epsilon)
+G_grad_noised = add_noise_to_gradients(G_grads_and_vars,epsilon)
 
 with tf.control_dependencies(update_ops):
     D_solver = D_optimizer.apply_gradients(D_grad_noised, global_step=global_step)
