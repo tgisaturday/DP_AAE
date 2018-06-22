@@ -260,7 +260,7 @@ A_true_flat = tf.reshape(X, [-1,64,64,3])
 global_step = tf.Variable(0, name="global_step", trainable=False)
 reg_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
-G_loss = -tf.reduce_mean(D_fake_logits)+reg_loss
+G_loss = -tf.reduce_mean(D_fake_logits)
 
 # Gradient Penalty
 epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
@@ -284,18 +284,22 @@ update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
 
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
-
-D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
-G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+D_optimizer = tf.train.AdamOptimizer(learning_rate=2e-4,beta1=0.5, beta2=0.9)
+G_optimizer = tf.train.AdamOptimizer(learning_rate=2e-4,beta1=0.5, beta2=0.9)
+R_optimizer = tf.train.AdamOptimizer(learning_rate=2e-4,beta1=0.5, beta2=0.9)
 D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
 G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_G)
-D_grad_noised = add_noise_to_gradients(D_grads_and_vars,0.5)
-G_grad_noised = add_noise_to_gradients(G_grads_and_vars,0.5)
-
+R_grads_and_vars=R_optimizer.compute_gradients(reg_loss, var_list=theta_G)
+#D_grad_noised = add_noise_to_gradients(D_grads_and_vars,1.0)
+#G_grad_noised = add_noise_to_gradients(G_grads_and_vars,1.0)
+R_grads_and_vars = add_noise_to_gradients(R_grads_and_vars,1.0)
 with tf.control_dependencies(update_ops):
-    D_solver = D_optimizer.apply_gradients(D_grad_noised, global_step=global_step)
-    G_solver = G_optimizer.apply_gradients(G_grad_noised, global_step=global_step)
-#clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
+    D_solver = D_optimizer.apply_gradients(D_grads_and_vars, global_step=global_step)
+    G_solver = G_optimizer.apply_gradients(G_grads_and_vars, global_step=global_step)
+    R_solver = R_optimizer.apply_gradients(R_grads_and_vars, global_step=global_step)
+
+
+clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
 if not os.path.exists('dc_out_lsun/'):
     os.makedirs('dc_out_lsun/')
 if not os.path.exists('generated_lsun/'):
@@ -305,10 +309,13 @@ with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     i = 0
     for it in range(1000000):
-        #for _ in range(5):
         X_mb = next_batch(mb_size, x_train)
-        enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,256]).astype(np.float32)   
-        _, D_loss_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb, N: enc_noise})
+        enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,256]).astype(np.float32)
+        _, D_loss_curr,_ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb, N: enc_noise})
+
+        X_mb = next_batch(mb_size, x_train)
+        enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,256]).astype(np.float32)
+        _, reg_loss_curr = sess.run([R_solver, reg_loss],feed_dict={X: X_mb, N: enc_noise})
         X_mb = next_batch(mb_size, x_train)
         enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,256]).astype(np.float32)  
         summary,_, G_loss_curr, reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb, N: enc_noise})
