@@ -157,8 +157,8 @@ def autoencoder(x):
             current_input = output
         a = current_input
         a_logits = deconv     
-    current_infer = tf.contrib.layers.batch_norm(tf.add(z,N),center=True, scale=True,is_training=True)
-    #current_infer = z
+   # current_infer = tf.contrib.layers.batch_norm(tf.add(z,N),center=True, scale=True,is_training=True)
+    current_infer = z
     with tf.name_scope("Generator"):
         for layer_i, shape in enumerate(shapes):
             W_enc = encoder[layer_i]
@@ -333,10 +333,11 @@ with tf.Session() as sess:
         X_mb = next_batch(mb_size, x_train)
         enc_noise = np.random.uniform(-0.2,0.2,[mb_size,4,4,256]).astype(np.float32)      
         _, reg_loss_curr = sess.run([R_solver, reg_loss],feed_dict={X: X_mb, N: enc_noise})
+
         X_mb = next_batch(mb_size, x_train)
         enc_noise = np.random.uniform(-0.2,0.2,[mb_size,4,4,256]).astype(np.float32)     
         summary,_, G_loss_curr, reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb, N: enc_noise})
-        
+  
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
 

@@ -80,12 +80,13 @@ rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
 X = tf.placeholder(tf.float32, shape=[None, 64, 64, 3])
 N = tf.placeholder(tf.float32, shape=[None,4,4,256])
-download_lsun("./data")
-data_files = glob(os.path.join("./data/lsun/*.jpg"))
+#download_lsun("./data")
+data_files = glob(os.path.join("./data/lsun2/*"))
 len_x_train = len(data_files)
-sample = [get_image(sample_file, 256, True, 64, is_grayscale = 0) for sample_file in data_files]
+sample = [get_image(sample_file, 108, True, 64, is_grayscale = 0) for sample_file in data_files]
 sample_images = np.array(sample).astype(np.float32)  
 x_train = sample_images
+print(len(x_train))
 #(x_train, y_train), (x_test, y_test) = load_data()
 #x_train = np.concatenate((x_train, x_test), axis=0)
 #y_train = np.concatenate((y_train, y_test), axis=0)
@@ -123,28 +124,44 @@ def autoencoder(x):
     encoder = []
     shapes = []
     
+    
     with tf.name_scope("Encoder"):
         for layer_i, n_output in enumerate(n_filters[1:]):
             n_input = current_input.get_shape().as_list()[3]
             shapes.append(current_input.get_shape().as_list())
             W = tf.Variable(xavier_init([filter_sizes[layer_i],filter_sizes[layer_i],n_input, n_output]))
             b = tf.Variable(tf.zeros([n_output]))
-            theta_G.append(W)
-            theta_G.append(b)
+            theta_A.append(W)
+            theta_A.append(b)
             encoder.append(W)
             conv = tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME')
             conv = tf.add(conv,b)            
             conv = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=True)
             output = tf.nn.relu(conv)
             current_input = output
-       
-    # store the latent representation
-    z = current_input 
-    
     encoder.reverse()
     shapes.reverse()
-    current_infer=z     
-    #current_infer = tf.contrib.layers.batch_norm(tf.add(z,N),center=True, scale=True,is_training=True)
+    # store the latent representation
+    z = current_input 
+    with tf.name_scope("Decoder"):
+        for layer_i, shape in enumerate(shapes):
+            W_enc = encoder[layer_i]
+            b = tf.Variable(tf.zeros(W_enc.get_shape().as_list()[2]))
+            theta_A.append(b)     
+            deconv = tf.nn.conv2d_transpose(current_input, W_enc,
+                                         tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
+                                           strides=[1, 2, 2, 1], padding='SAME')
+            deconv = tf.add(deconv,b)
+            deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
+            if layer_i == 3:
+                output = tf.nn.sigmoid(deconv)
+            else:
+                output = tf.nn.relu(deconv)
+            current_input = output
+        a = current_input
+        a_logits = deconv     
+   # current_infer = tf.contrib.layers.batch_norm(tf.add(z,N),center=True, scale=True,is_training=True)
+    current_infer = z
     with tf.name_scope("Generator"):
         for layer_i, shape in enumerate(shapes):
             W_enc = encoder[layer_i]
@@ -158,14 +175,15 @@ def autoencoder(x):
             deconv = tf.add(deconv,b)
             deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
             if layer_i == 3:
-                output = tf.nn.tanh(deconv)
+                output = tf.nn.sigmoid(deconv)
             else:
                 output = tf.nn.relu(deconv)
             current_infer = output
         g = current_infer
         g_logits = deconv
 
-    return g_logits, g
+    return g_logits, g, a_logits, a
+
 
 W1 = tf.Variable(xavier_init([3,3,3,32]))
 b1 = tf.Variable(tf.zeros(shape=[32]))
@@ -251,16 +269,17 @@ def discriminator(x):
         d = tf.nn.xw_plus_b(h10, W9, b9)
     return d
 
-logits,G_sample = autoencoder(X)
+logits,G_sample,A_logits, A_sample = autoencoder(X)
 
 D_real_logits = discriminator(X)
 D_fake_logits = discriminator(G_sample)
 A_true_flat = tf.reshape(X, [-1,64,64,3])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
-reg_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
+reg_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
 G_loss = -tf.reduce_mean(D_fake_logits)
+
 
 # Gradient Penalty
 epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
@@ -274,6 +293,7 @@ D_loss = D_loss + 10.0 * gradient_penalty
 
 tf.summary.image('Original',A_true_flat)
 tf.summary.image('G_sample',G_sample)
+tf.summary.image('A_sample',A_sample)
 tf.summary.scalar('D_loss', D_loss)
 tf.summary.scalar('G_loss',G_loss)
 tf.summary.scalar('reg_loss',reg_loss)
@@ -282,22 +302,20 @@ merged = tf.summary.merge_all()
 
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
-
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
-D_optimizer = tf.train.AdamOptimizer(learning_rate=2e-4,beta1=0.5, beta2=0.9)
-G_optimizer = tf.train.AdamOptimizer(learning_rate=2e-4,beta1=0.5, beta2=0.9)
-R_optimizer = tf.train.AdamOptimizer(learning_rate=2e-4,beta1=0.5, beta2=0.9)
+D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+R_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
 D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
 G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_G)
-R_grads_and_vars=R_optimizer.compute_gradients(reg_loss, var_list=theta_G)
+R_grads_and_vars=R_optimizer.compute_gradients(reg_loss, var_list=theta_A)
 #D_grad_noised = add_noise_to_gradients(D_grads_and_vars,1.0)
 #G_grad_noised = add_noise_to_gradients(G_grads_and_vars,1.0)
-R_grads_and_vars = add_noise_to_gradients(R_grads_and_vars,1.0)
+#R_grads_and_vars = add_noise_to_gradients(R_grads_and_vars,1.0)
 with tf.control_dependencies(update_ops):
     D_solver = D_optimizer.apply_gradients(D_grads_and_vars, global_step=global_step)
     G_solver = G_optimizer.apply_gradients(G_grads_and_vars, global_step=global_step)
     R_solver = R_optimizer.apply_gradients(R_grads_and_vars, global_step=global_step)
-
 
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
 if not os.path.exists('dc_out_lsun/'):
@@ -310,16 +328,15 @@ with tf.Session() as sess:
     i = 0
     for it in range(1000000):
         X_mb = next_batch(mb_size, x_train)
-        enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,256]).astype(np.float32)
-        _, D_loss_curr,_ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb, N: enc_noise})
-
+        enc_noise = np.random.uniform(-0.2,0.2,[mb_size,4,4,256]).astype(np.float32)   
+        _, D_loss_curr,_ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb, N: enc_noise})      
         X_mb = next_batch(mb_size, x_train)
-        enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,256]).astype(np.float32)
+        enc_noise = np.random.uniform(-0.2,0.2,[mb_size,4,4,256]).astype(np.float32)      
         _, reg_loss_curr = sess.run([R_solver, reg_loss],feed_dict={X: X_mb, N: enc_noise})
-        X_mb = next_batch(mb_size, x_train)
-        enc_noise = np.random.normal(0.0,1.0,[mb_size,4,4,256]).astype(np.float32)  
-        summary,_, G_loss_curr, reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb, N: enc_noise})
         
+        X_mb = next_batch(mb_size, x_train)
+        enc_noise = np.random.uniform(-0.2,0.2,[mb_size,4,4,256]).astype(np.float32)     
+        summary,_, G_loss_curr, reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb, N: enc_noise})
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
         
