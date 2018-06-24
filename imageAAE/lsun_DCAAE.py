@@ -13,7 +13,7 @@ from random import shuffle
 from download import download_lsun
 from utils import *
 from utils import add_noise_to_gradients
-
+import time
 initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
@@ -83,10 +83,14 @@ N = tf.placeholder(tf.float32, shape=[None,4,4,256])
 #download_lsun("./data")
 data_files = glob(os.path.join("./data/lsun2/*"))
 len_x_train = len(data_files)
-sample = [get_image(sample_file, 108, True, 64, is_grayscale = 0) for sample_file in data_files]
+sample=[]
+for sample_file in data_files:
+    cropped = get_image(sample_file, 256, False, 64, is_grayscale = 0)
+    sample.append(cropped)
+print(len_x_train)
 sample_images = np.array(sample).astype(np.float32)  
 x_train = sample_images
-print(len(x_train))
+
 #(x_train, y_train), (x_test, y_test) = load_data()
 #x_train = np.concatenate((x_train, x_test), axis=0)
 #y_train = np.concatenate((y_train, y_test), axis=0)
@@ -105,7 +109,7 @@ def xavier_init(size):
 
 def autoencoder(x):
     input_shape=[None, 64, 64, 3]
-    n_filters=[3, 32, 64, 128, 256]
+    n_filters=[3, 64, 128, 256, 512]
     filter_sizes=[5, 5, 5, 5, 5]
     
     if len(x.get_shape()) == 3:
@@ -124,7 +128,6 @@ def autoencoder(x):
     encoder = []
     shapes = []
     
-    
     with tf.name_scope("Encoder"):
         for layer_i, n_output in enumerate(n_filters[1:]):
             n_input = current_input.get_shape().as_list()[3]
@@ -141,66 +144,59 @@ def autoencoder(x):
             current_input = output
     encoder.reverse()
     shapes.reverse()
-    # store the latent representation
-    z = current_input 
+
+    W = tf.Variable(tf.random_normal([4*4*512, 100]))
+    b = tf.Variable(tf.random_normal([100]))
+    theta_A.append(W)
+    theta_A.append(b)
+    z = tf.nn.tanh(tf.nn.xw_plus_b(tf.layers.flatten(current_input), W, b))
+    
     with tf.name_scope("Decoder"):
+        W = tf.Variable(tf.random_normal([100, 4*4*512]))
+        b = tf.Variable(tf.random_normal([4*4*512]))
+        theta_A.append(W)
+        theta_A.append(b)
+        z_ = tf.nn.tanh(tf.nn.xw_plus_b(z, W, b))
+        current_input = tf.reshape(z_, [-1, 4, 4, 512])
+        print(len(shapes))
         for layer_i, shape in enumerate(shapes):
             W_enc = encoder[layer_i]
             b = tf.Variable(tf.zeros(W_enc.get_shape().as_list()[2]))
             theta_A.append(b)     
             deconv = tf.nn.conv2d_transpose(current_input, W_enc,
-                                         tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
-                                           strides=[1, 2, 2, 1], padding='SAME')
+                                     tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
+                                     strides=[1, 2, 2, 1], padding='SAME')
             deconv = tf.add(deconv,b)
             deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
-            if layer_i == 3:
+            if layer_i == 4:
                 output = tf.nn.sigmoid(deconv)
             else:
                 output = tf.nn.relu(deconv)
             current_input = output
-        a = current_input
-        a_logits = deconv     
-   # current_infer = tf.contrib.layers.batch_norm(tf.add(z,N),center=True, scale=True,is_training=True)
-    current_infer = z
-    with tf.name_scope("Generator"):
-        for layer_i, shape in enumerate(shapes):
-            W_enc = encoder[layer_i]
-            W = tf.Variable(xavier_init(W_enc.get_shape().as_list()))
-            b = tf.Variable(tf.zeros(W_enc.get_shape().as_list()[2]))           
-            theta_G.append(W)
-            theta_G.append(b)     
-            deconv = tf.nn.conv2d_transpose(current_infer, W,
-                                         tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
-                                           strides=[1, 2, 2, 1], padding='SAME')
-            deconv = tf.add(deconv,b)
-            deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
-            if layer_i == 3:
-                output = tf.nn.sigmoid(deconv)
-            else:
-                output = tf.nn.relu(deconv)
-            current_infer = output
-        g = current_infer
-        g_logits = deconv
-
-    return g_logits, g, a_logits, a
+        g = current_input
+        g_logits = deconv     
 
 
-W1 = tf.Variable(xavier_init([3,3,3,32]))
-b1 = tf.Variable(tf.zeros(shape=[32]))
-W2 = tf.Variable(xavier_init([3,3,32,32]))
-b2 = tf.Variable(tf.zeros(shape=[32]))
-W3 = tf.Variable(xavier_init([3,3,32,64]))
-W4 = tf.Variable(xavier_init([3,3,64,64]))
-b4 = tf.Variable(tf.zeros(shape=[64]))
-W5 = tf.Variable(xavier_init([3,3,64,128]))
-b5 = tf.Variable(tf.zeros(shape=[128]))
-W6 = tf.Variable(xavier_init([3,3,128,128]))
-b6 = tf.Variable(tf.zeros(shape=[128]))
-W7 = tf.Variable(xavier_init([3,3,128,256]))
-b7 = tf.Variable(tf.zeros(shape=[256]))    
-W8 = tf.Variable(xavier_init([3,3,256,256]))
-b8 = tf.Variable(tf.zeros(shape=[256]))
-W9 = tf.Variable(xavier_init([4096, 1]))
+    return g_logits, g
+
+
+W1 = tf.Variable(xavier_init([3,3,3,64]))
+b1 = tf.Variable(tf.zeros(shape=[64]))
+W2 = tf.Variable(xavier_init([3,3,64,64]))
+b2 = tf.Variable(tf.zeros(shape=[64]))
+W3 = tf.Variable(xavier_init([3,3,64,128]))
+b3 = tf.Variable(tf.zeros(shape=[128]))
+W4 = tf.Variable(xavier_init([3,3,128,128]))
+b4 = tf.Variable(tf.zeros(shape=[128]))
+W5 = tf.Variable(xavier_init([3,3,128,256]))
+b5 = tf.Variable(tf.zeros(shape=[256]))
+W6 = tf.Variable(xavier_init([3,3,256,256]))
+b6 = tf.Variable(tf.zeros(shape=[256]))
+W7 = tf.Variable(xavier_init([3,3,256,512]))
+b7 = tf.Variable(tf.zeros(shape=[512]))    
+W8 = tf.Variable(xavier_init([3,3,512,512]))
+b8 = tf.Variable(tf.zeros(shape=[512]))
+W9 = tf.Variable(xavier_init([8192, 1]))
 b9 = tf.Variable(tf.zeros(shape=[1]))
      
 theta_D = [W1,W2,W3,W4,W5,W6,W7,W8,W9,b1,b2,b3,b4,b5,b6,b7,b8,b9]
@@ -269,17 +265,16 @@ def discriminator(x):
         d = tf.nn.xw_plus_b(h10, W9, b9)
     return d
 
-logits,G_sample,A_logits, A_sample = autoencoder(X)
+logits,G_sample = autoencoder(X)
 
 D_real_logits = discriminator(X)
 D_fake_logits = discriminator(G_sample)
 A_true_flat = tf.reshape(X, [-1,64,64,3])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
-reg_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
+reg_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
-G_loss = -tf.reduce_mean(D_fake_logits)
-
+G_loss = -tf.reduce_mean(D_fake_logits)+reg_loss
 
 # Gradient Penalty
 epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
@@ -293,7 +288,6 @@ D_loss = D_loss + 10.0 * gradient_penalty
 
 tf.summary.image('Original',A_true_flat)
 tf.summary.image('G_sample',G_sample)
-tf.summary.image('A_sample',A_sample)
 tf.summary.scalar('D_loss', D_loss)
 tf.summary.scalar('G_loss',G_loss)
 tf.summary.scalar('reg_loss',reg_loss)
@@ -302,81 +296,57 @@ merged = tf.summary.merge_all()
 
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
+
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
 D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
 G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
-R_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+
 D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
-G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_G)
-R_grads_and_vars=R_optimizer.compute_gradients(reg_loss, var_list=theta_A)
+G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_A)
+
 #D_grad_noised = add_noise_to_gradients(D_grads_and_vars,1.0)
 #G_grad_noised = add_noise_to_gradients(G_grads_and_vars,1.0)
-#R_grads_and_vars = add_noise_to_gradients(R_grads_and_vars,1.0)
+
 with tf.control_dependencies(update_ops):
     D_solver = D_optimizer.apply_gradients(D_grads_and_vars, global_step=global_step)
     G_solver = G_optimizer.apply_gradients(G_grads_and_vars, global_step=global_step)
-    R_solver = R_optimizer.apply_gradients(R_grads_and_vars, global_step=global_step)
 
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
+
+timestamp = str(int(time.time()))
+out_dir = os.path.abspath(os.path.join(os.path.curdir, "models/lsun_" + timestamp))
+checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
+checkpoint_prefix = os.path.join(checkpoint_dir, "model")
+if not os.path.exists('models/'):
+    os.makedirs('models/')
+if not os.path.exists(checkpoint_dir):
+    os.makedirs(checkpoint_dir)
+    saver = tf.train.Saver(tf.global_variables())
 if not os.path.exists('dc_out_lsun/'):
     os.makedirs('dc_out_lsun/')
-if not os.path.exists('generated_lsun/'):
-    os.makedirs('generated_lsun/')    
+#if not os.path.exists('generated_lsun/'):
+    #os.makedirs('generated_lsun/')      
 with tf.Session() as sess:
     train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'lsun',sess.graph)
     sess.run(tf.global_variables_initializer())
-    i = 0
+    i=0
     for it in range(1000000):
+        X_mb = next_batch(mb_size, x_train) 
+        _, D_loss_curr,_ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb})      
         X_mb = next_batch(mb_size, x_train)
-        enc_noise = np.random.uniform(-0.2,0.2,[mb_size,4,4,256]).astype(np.float32)   
-        _, D_loss_curr,_ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb, N: enc_noise})      
-        X_mb = next_batch(mb_size, x_train)
-        enc_noise = np.random.uniform(-0.2,0.2,[mb_size,4,4,256]).astype(np.float32)      
-        _, reg_loss_curr = sess.run([R_solver, reg_loss],feed_dict={X: X_mb, N: enc_noise})
-        
-        X_mb = next_batch(mb_size, x_train)
-        enc_noise = np.random.uniform(-0.2,0.2,[mb_size,4,4,256]).astype(np.float32)     
-        summary,_, G_loss_curr, reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb, N: enc_noise})
+        summary,_, G_loss_curr, reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb})
+  
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
+
         
         if it % 100 == 0:
             print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; reg_loss: {:.4}'.format(it,D_loss_curr,G_loss_curr, reg_loss_curr))
 
         if it % 1000 == 0:
-            samples = sess.run(G_sample, feed_dict={X: X_mb,N: enc_noise})
+            samples = sess.run(G_sample, feed_dict={X: X_mb})
             samples_flat = tf.reshape(samples,[-1,64,64,3]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
             plt.savefig('dc_out_lsun/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
             i += 1
             plt.close(fig)
-''' 
-        if it% 100000 == 0:
-            for ii in range(len_x_train//100):
-                xt_mb, y_mb = next_batch(100,x_train, y_train_one_hot.eval(),shuffle=False)
-                enc_noise = np.random.normal(0.0,1.0,[100,2,2,512]).astype(np.float32)
-                samples = sess.run(G_sample, feed_dict={X: xt_mb,N: enc_noise})
-                if ii == 0:
-                    generated = samples
-                    labels = y_mb
-                else:
-                    np.append(generated,samples,axis=0)
-                    np.append(labels,y_mb, axis=0)
-                    
-            np.save('./generated_cifar10/generated_{}_image.npy'.format(str(it)), generated)
-            np.save('./generated_cifar10/generated_{}_label.npy'.format(str(it)), labels)
-
-for iii in range(len_x_train//100):
-    xt_mb, y_mb = next_batch(100,x_train, y_train_one_hot.eval(),shuffle=False)
-    enc_noise = np.random.normal(0.0,1.0,[100,2,2,512]).astype(np.float32)
-    samples = sess.run(G_sample, feed_dict={X: xt_mb,N: enc_noise})
-    if iii == 0:
-        generated = samples
-        labels = y_mb
-    else:
-        np.append(generated,samples,axis=0)
-        np.append(labels,y_mb, axis=0)
-
-np.save('./generated_cifar10/generated_{}_image.npy'.format(str(it)), generated)
-np.save('./generated_cifar10/generated_{}_label.npy'.format(str(it)), labels)
-'''             
