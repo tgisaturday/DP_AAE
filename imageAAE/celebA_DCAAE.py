@@ -79,7 +79,7 @@ initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
 X = tf.placeholder(tf.float32, shape=[None, 64, 64, 3])
-
+N = tf.placeholder(tf.float32, shape=[None,100])
 download_celeb_a("./data")
 data_files = glob(os.path.join("./data/celebA/*.jpg"))
 len_x_train = len(data_files)
@@ -139,7 +139,7 @@ def autoencoder(x):
     theta_A.append(W)
     theta_A.append(b)
     z = tf.nn.tanh(tf.nn.xw_plus_b(tf.layers.flatten(current_input), W, b))
-    
+    z = tf.add(z,N)
     with tf.name_scope("Decoder"):
         W = tf.Variable(tf.random_normal([100, 4*4*1024]))
         b = tf.Variable(tf.random_normal([4*4*1024]))
@@ -320,9 +320,11 @@ with tf.Session() as sess:
     i=0
     for it in range(1000000):
         X_mb = next_batch(mb_size, x_train) 
-        _, D_loss_curr,_ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb})      
+        enc_noise = np.random.normal(0.0,1.0,[mb_size,100]).astype(np.float32) 
+        _, D_loss_curr,_ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb, N:enc_noise})      
         X_mb = next_batch(mb_size, x_train)
-        summary,_, G_loss_curr, reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb})
+        enc_noise = np.random.normal(0.0,1.0,[mb_size,100]).astype(np.float32) 
+        summary,_, G_loss_curr, reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb, N:enc_noise})
   
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
@@ -332,7 +334,8 @@ with tf.Session() as sess:
             print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; reg_loss: {:.4}'.format(it,D_loss_curr,G_loss_curr, reg_loss_curr))
 
         if it % 1000 == 0:
-            samples = sess.run(G_sample, feed_dict={X: X_mb})
+            enc_noise = np.random.uniform(- 0.5,0.5,[mb_size,100]).astype(np.float32)
+            samples = sess.run(G_sample, feed_dict={X: X_mb, N: enc_noise})
             samples_flat = tf.reshape(samples,[-1,64,64,3]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
             plt.savefig('dc_out_celebA/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
