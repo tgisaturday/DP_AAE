@@ -31,7 +31,7 @@ def random_laplace(shape,sensitivity, epsilon):
     rand_lap= - (sensitivity/epsilon)*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
     return tf.clip_by_norm(tf.clip_by_value(rand_lap, -3.0,3.0),sensitivity)
 
-mb_size = 128
+mb_size = 64
 X_dim = 4096
 
 
@@ -98,7 +98,7 @@ def xavier_init(size):
 
 def autoencoder(x):
     input_shape=[None, 64, 64, 3]
-    n_filters=[3, 64, 128, 256, 512]
+    n_filters=[3, 128, 256, 512, 1024]
     filter_sizes=[5, 5, 5, 5, 5]
     
     if len(x.get_shape()) == 3:
@@ -134,20 +134,19 @@ def autoencoder(x):
     encoder.reverse()
     shapes.reverse()
 
-    W = tf.Variable(tf.random_normal([4*4*512, 100]))
+    W = tf.Variable(tf.random_normal([4*4*1024, 100]))
     b = tf.Variable(tf.random_normal([100]))
     theta_A.append(W)
     theta_A.append(b)
     z = tf.nn.tanh(tf.nn.xw_plus_b(tf.layers.flatten(current_input), W, b))
     
     with tf.name_scope("Decoder"):
-        W = tf.Variable(tf.random_normal([100, 4*4*512]))
-        b = tf.Variable(tf.random_normal([4*4*512]))
+        W = tf.Variable(tf.random_normal([100, 4*4*1024]))
+        b = tf.Variable(tf.random_normal([4*4*1024]))
         theta_A.append(W)
         theta_A.append(b)
         z_ = tf.nn.tanh(tf.nn.xw_plus_b(z, W, b))
-        current_input = tf.reshape(z_, [-1, 4, 4, 512])
-        print(len(shapes))
+        current_input = tf.reshape(z_, [-1, 4, 4, 1024])
         for layer_i, shape in enumerate(shapes):
             W_enc = encoder[layer_i]
             b = tf.Variable(tf.zeros(W_enc.get_shape().as_list()[2]))
@@ -157,7 +156,7 @@ def autoencoder(x):
                                      strides=[1, 2, 2, 1], padding='SAME')
             deconv = tf.add(deconv,b)
             deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
-            if layer_i == 4:
+            if layer_i == 3:
                 output = tf.nn.sigmoid(deconv)
             else:
                 output = tf.nn.relu(deconv)
