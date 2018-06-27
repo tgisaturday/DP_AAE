@@ -168,7 +168,7 @@ def autoencoder(x):
                                      strides=[1, 2, 2, 1], padding='SAME')
             deconv = tf.add(deconv,b)
             deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
-            if layer_i == 4:
+            if layer_i == 3:
                 output = tf.nn.sigmoid(deconv)
             else:
                 output = tf.nn.relu(deconv)

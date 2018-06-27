@@ -64,7 +64,7 @@ def xavier_init(size):
 
 def autoencoder(x):
     input_shape=[None, 28, 28, 1]
-    n_filters=[3, 128, 256, 512]
+    n_filters=[1, 128, 256, 512]
     filter_sizes=[5, 5, 5, 5]
     
     if len(x.get_shape()) == 2:
@@ -268,7 +268,7 @@ with tf.Session() as sess:
         train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'mnist',sess.graph)
         sess.run(tf.global_variables_initializer())
         i = 0
-        for it in range(1000000):
+        for it in range(10000000):
             X_mb, Y_mb = mnist.train.next_batch(mb_size)
             enc_noise = np.random.normal(0.0,1.0,[mb_size,100]).astype(np.float32) 
             _, D_loss_curr,_ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb, N: enc_noise})

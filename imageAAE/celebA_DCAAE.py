@@ -31,7 +31,7 @@ def random_laplace(shape,sensitivity, epsilon):
     rand_lap= - (sensitivity/epsilon)*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
     return tf.clip_by_norm(tf.clip_by_value(rand_lap, -3.0,3.0),sensitivity)
 
-mb_size = 64
+mb_size = 128
 X_dim = 4096
 
 
@@ -98,7 +98,7 @@ def xavier_init(size):
 
 def autoencoder(x):
     input_shape=[None, 64, 64, 3]
-    n_filters=[3, 128, 256, 512, 1024]
+    n_filters=[3, 64, 128, 256, 512]
     filter_sizes=[5, 5, 5, 5, 5]
     
     if len(x.get_shape()) == 3:
@@ -134,19 +134,19 @@ def autoencoder(x):
     encoder.reverse()
     shapes.reverse()
 
-    W = tf.Variable(tf.random_normal([4*4*1024, 100]))
+    W = tf.Variable(tf.random_normal([4*4*512, 100]))
     b = tf.Variable(tf.random_normal([100]))
     theta_A.append(W)
     theta_A.append(b)
     z = tf.nn.tanh(tf.nn.xw_plus_b(tf.layers.flatten(current_input), W, b))
     z = tf.add(z,N)
     with tf.name_scope("Decoder"):
-        W = tf.Variable(tf.random_normal([100, 4*4*1024]))
-        b = tf.Variable(tf.random_normal([4*4*1024]))
+        W = tf.Variable(tf.random_normal([100, 4*4*512]))
+        b = tf.Variable(tf.random_normal([4*4*512]))
         theta_A.append(W)
         theta_A.append(b)
         z_ = tf.nn.tanh(tf.nn.xw_plus_b(z, W, b))
-        current_input = tf.reshape(z_, [-1, 4, 4, 1024])
+        current_input = tf.reshape(z_, [-1, 4, 4, 512])
         for layer_i, shape in enumerate(shapes):
             W_enc = encoder[layer_i]
             b = tf.Variable(tf.zeros(W_enc.get_shape().as_list()[2]))
@@ -262,7 +262,7 @@ A_true_flat = tf.reshape(X, [-1,64,64,3])
 global_step = tf.Variable(0, name="global_step", trainable=False)
 reg_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
-G_loss = -tf.reduce_mean(D_fake_logits)+reg_loss
+G_loss = -tf.reduce_mean(D_fake_logits) + 10.0*reg_loss
 
 # Gradient Penalty
 epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
@@ -318,7 +318,7 @@ with tf.Session() as sess:
     train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'celebA',sess.graph)
     sess.run(tf.global_variables_initializer())
     i=0
-    for it in range(1000000):
+    for it in range(1000000000):
         X_mb = next_batch(mb_size, x_train) 
         enc_noise = np.random.normal(0.0,1.0,[mb_size,100]).astype(np.float32) 
         _, D_loss_curr,_ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb, N:enc_noise})      
@@ -334,7 +334,7 @@ with tf.Session() as sess:
             print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; reg_loss: {:.4}'.format(it,D_loss_curr,G_loss_curr, reg_loss_curr))
 
         if it % 1000 == 0:
-            enc_noise = np.random.uniform(- 0.5,0.5,[mb_size,100]).astype(np.float32)
+            enc_noise = np.random.laplace(0.0,1.0,[mb_size,100]).astype(np.float32)
             samples = sess.run(G_sample, feed_dict={X: X_mb, N: enc_noise})
             samples_flat = tf.reshape(samples,[-1,64,64,3]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
