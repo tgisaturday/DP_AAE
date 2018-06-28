@@ -232,7 +232,7 @@ def train_cnn(dataset_name):
                     cnn.dropout_keep_prob: params['dropout_keep_prob'],
                     cnn.seq_lambda: seq_lambda,                    
                     cnn.is_training: True,
-                    cnn.enc_noise: np.random.normal(0.0,1.0,[len(x_batch),30,512]).astype(np.float32)
+                    cnn.enc_noise: np.random.normal(0.0,1.0,[len(x_batch),max_document_length,512]).astype(np.float32)
                 }
                 
                 summary, _, step, D_loss, G_loss,A_loss = sess.run([cnn.merged, train_D, global_step, cnn.D_loss, cnn.G_loss,cnn.A_loss], feed_dict)
@@ -250,7 +250,7 @@ def train_cnn(dataset_name):
                     cnn.dropout_keep_prob: params['dropout_keep_prob'],
                     cnn.seq_lambda: seq_lambda,
                     cnn.is_training: True,
-                    cnn.enc_noise: np.random.normal(0.0,1.0,[len(x_batch),30,512]).astype(np.float32)}
+                    cnn.enc_noise: np.random.normal(0.0,1.0,[len(x_batch),max_document_length,512]).astype(np.float32)}
                 summary, _, step, D_loss, G_loss,A_loss = sess.run([cnn.merged, train_G, global_step, cnn.D_loss, cnn.G_loss, cnn.A_loss], feed_dict)
                 current_step = tf.train.global_step(sess, global_step)
                 train_writer.add_summary(summary,current_step)
@@ -267,7 +267,7 @@ def train_cnn(dataset_name):
                     cnn.dropout_keep_prob: 1.0,
                     cnn.seq_lambda: seq_lambda,                    
                     cnn.is_training: False,
-                    cnn.enc_noise: np.random.laplace(0.0,1.0,[len(x_batch),30,512]).astype(np.float32)}
+                    cnn.enc_noise: np.random.laplace(0.0,1.0,[len(x_batch),max_document_length,512]).astype(np.float32)}
                 summary, step, examples = sess.run([cnn.merged,global_step,cnn.training_logits],feed_dict)
                 G_samples = []
                 for example in examples:

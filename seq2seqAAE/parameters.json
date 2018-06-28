@@ -1,6 +1,6 @@
 {
     "num_epochs": 50,
-    "batch_size": 256,
+    "batch_size": 128,
     "max_length": 30,
     "filter_sizes": "3,4,5",
     "learning_rate": 0.001,
