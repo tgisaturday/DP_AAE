@@ -25,6 +25,8 @@ class seq2CNN(object):
         self.seq_lambda = tf.placeholder(tf.float32, name='seq_lambda') 
         self.is_training = tf.placeholder(tf.bool, name='is_training')
         self.enc_noise = tf.placeholder(tf.float32,[None,None,512],name='enc_noise')
+        
+        self.theta_D = []
         with tf.device('/cpu:0'),tf.name_scope('embedding'):
             embeddings = tf.get_variable(name='embedding_W',initializer=embeddings)
             #embeddings=embeddings
@@ -61,18 +63,21 @@ class seq2CNN(object):
             decoder_output = tf.nn.embedding_lookup(embeddings, self.training_logits)
             decoder_output_expanded = tf.expand_dims(decoder_output, -1)
 
-            cnn_input = tf.contrib.layers.batch_norm(decoder_output_expanded,center=True, scale=True,is_training=self.is_training)
-            
+            #cnn_input = tf.contrib.layers.batch_norm(decoder_output_expanded,center=True, scale=True,is_training=self.is_training)
+            cnn_input = decoder_output_expanded
             pooled_outputs = []
             for i, filter_size in enumerate(filter_sizes):
                 with tf.variable_scope('conv-maxpool-%s' % filter_size):
                     # Convolution Layer
                     filter_shape = [filter_size, embedding_size, 1, num_filters]
                     W = tf.get_variable(name='W', shape=filter_shape,initializer=he_normal)
+                    b = tf.get_variable(name='b',shape=[num_filters],initializer=tf.constant_initializer(0.1))
+                    self.theta_D.append(W)
+                    self.theta_D.append(b)
                     conv = tf.nn.conv2d(cnn_input, W, strides=[1, 1, 1, 1], padding='VALID', name='conv')
                     #Apply nonlinearity
-                    h = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=self.is_training)
-                    h = tf.nn.leaky_relu(h,0.2, name='relu')
+                    #h = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=self.is_training)
+                    h = tf.nn.leaky_relu(conv,0.2, name='relu')
                     # Maxpooling over the outputs
                     pooled = tf.nn.max_pool(h, ksize=[1, max_summary_length - filter_size + 1, 1, 1], strides=[1, 1, 1, 1],
                                        padding='VALID', name='pool')                
@@ -85,23 +90,27 @@ class seq2CNN(object):
                 W = tf.get_variable('W', shape=[len(filter_sizes)*num_filters, 1],
                                     initializer=initializer)
                 b = tf.get_variable('b', [1], initializer=tf.constant_initializer(0.1))
+                self.theta_D.append(W)
+                self.theta_D.append(b)
                 self.D_logit_fake = tf.nn.xw_plus_b(h_drop, W, b, name='scores')
                 
         with tf.variable_scope('textCNN', reuse=True):
             inference_output = enc_embed_input
             inference_output_expanded = tf.expand_dims(inference_output, -1)
-            inference_cnn_input = tf.contrib.layers.batch_norm(inference_output_expanded,center=True, scale=True,is_training=self.is_training)
-            
+            #inference_cnn_input = tf.contrib.layers.batch_norm(inference_output_expanded,center=True, scale=True,is_training=self.is_training)
+            inference_cnn_input = inference_output_expanded
             inference_pooled_outputs = []
             for i, filter_size in enumerate(filter_sizes):
                 with tf.variable_scope('conv-maxpool-%s' % filter_size):
                     # Convolution Layer
                     filter_shape = [filter_size, embedding_size, 1, num_filters]
                     W = tf.get_variable(name='W', shape=filter_shape,initializer=he_normal)
+                    b = tf.get_variable(name='b',shape=[num_filters],initializer=tf.constant_initializer(0.1))
+
                     conv = tf.nn.conv2d(cnn_input, W, strides=[1, 1, 1, 1], padding='VALID', name='conv')
                     #Apply nonlinearity
-                    h = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=self.is_training)
-                    h = tf.nn.leaky_relu(h,0.2, name='relu')
+                    #h = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=self.is_training)
+                    h = tf.nn.leaky_relu(conv,0.2, name='relu')
                     # Maxpooling over the outputs
                     pooled = tf.nn.max_pool(h, ksize=[1, max_summary_length - filter_size + 1, 1, 1], strides=[1, 1, 1, 1],
                                        padding='VALID', name='pool')                
@@ -114,6 +123,7 @@ class seq2CNN(object):
                 W = tf.get_variable('W', shape=[len(filter_sizes)*num_filters, 1],
                                     initializer=initializer)
                 b = tf.get_variable('b', [1], initializer=tf.constant_initializer(0.1))
+
                 self.D_logit_real = tf.nn.xw_plus_b(inference_h_drop, W, b, name='inference_scores')          
 
 

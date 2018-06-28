@@ -208,11 +208,13 @@ def train_cnn(dataset_name):
             learning_rate = tf.train.exponential_decay(params['learning_rate'], global_step,num_batches_per_epoch, 0.95, staircase=True)
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             grads_and_vars = tf.train.AdamOptimizer(learning_rate=learning_rate).compute_gradients(cnn.A_loss)
-            seq_gradients, seq_variables = zip(*grads_and_vars)
-            
+            gradients, variables = zip(*grads_and_vars)
+            theta_D = cnn.theta_D            
+            theta_G = [ var for var in variables if var not in theta_D]
+
             with tf.control_dependencies(update_ops):
-                train_D = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cnn.D_loss, global_step=global_step)
-                train_G = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cnn.G_loss,var_list=seq_variables,global_step=global_step)            
+                train_D = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cnn.D_loss,var_list=theta_D, global_step=global_step)
+                train_G = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cnn.G_loss,var_list=theta_G,global_step=global_step)            
             timestamp = str(int(time.time()))
             out_dir = os.path.abspath(os.path.join(os.path.curdir, dataset_name + "_" + timestamp))
 
