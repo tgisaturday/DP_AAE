@@ -125,7 +125,7 @@ class seq2CNN(object):
             D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_logit_fake, labels=tf.zeros_like(self.D_logit_fake)))
             self.D_loss = D_loss_real + D_loss_fake 
             #self.G_loss = self.seq_lambda*tf.reduce_mean(seq_loss) + D_loss_fake 
-            self.G_loss = D_loss_fake 
+            self.G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_logit_fake, labels=tf.ones_like(self.D_logit_fake)))
             self.A_loss = tf.reduce_mean(seq_loss)
             tf.summary.scalar('D_loss',self.D_loss)
             tf.summary.scalar('G_loss',self.G_loss)
