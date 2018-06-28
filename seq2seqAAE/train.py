@@ -200,10 +200,7 @@ def train_cnn(dataset_name):
                 vocab_to_int = vocab_to_int,
                 num_filters=params['num_filters'],
                 vocab_size=len(vocab_to_int),
-                embedding_size=params['embedding_dim'],
-                sensitivity=params['sensitivity'],
-                noise_epsilon=params['noise_epsilon'],
-                l2_reg_lambda=params['l2_reg_lambda']
+                embedding_size=params['embedding_dim']
                 )
             global_step = tf.Variable(0, name="global_step", trainable=False)            
             num_batches_per_epoch = int((len(x_train)-1)/params['batch_size']) + 1
@@ -234,7 +231,10 @@ def train_cnn(dataset_name):
                     cnn.batch_size: len(x_batch),
                     cnn.dropout_keep_prob: params['dropout_keep_prob'],
                     cnn.seq_lambda: seq_lambda,                    
-                    cnn.is_training: True}
+                    cnn.is_training: True,
+                    cnn.enc_noise: np.random.normal(0.0,1.0,[len(x_batch),30,512]).astype(np.float32)
+                }
+                
                 summary, _, step, D_loss, G_loss,A_loss = sess.run([cnn.merged, train_D, global_step, cnn.D_loss, cnn.G_loss,cnn.A_loss], feed_dict)
                 current_step = tf.train.global_step(sess, global_step)
                 train_writer.add_summary(summary,current_step)
@@ -249,7 +249,8 @@ def train_cnn(dataset_name):
                     cnn.batch_size: len(x_batch),
                     cnn.dropout_keep_prob: params['dropout_keep_prob'],
                     cnn.seq_lambda: seq_lambda,
-                    cnn.is_training: True}
+                    cnn.is_training: True,
+                    cnn.enc_noise: np.random.normal(0.0,1.0,[len(x_batch),30,512]).astype(np.float32)}
                 summary, _, step, D_loss, G_loss,A_loss = sess.run([cnn.merged, train_G, global_step, cnn.D_loss, cnn.G_loss, cnn.A_loss], feed_dict)
                 current_step = tf.train.global_step(sess, global_step)
                 train_writer.add_summary(summary,current_step)
@@ -265,7 +266,8 @@ def train_cnn(dataset_name):
                     cnn.batch_size: len(x_batch),
                     cnn.dropout_keep_prob: 1.0,
                     cnn.seq_lambda: seq_lambda,                    
-                    cnn.is_training: False}
+                    cnn.is_training: False,
+                    cnn.enc_noise: np.random.laplace(0.0,1.0,[len(x_batch),30,512]).astype(np.float32)}
                 summary, step, examples = sess.run([cnn.merged,global_step,cnn.training_logits],feed_dict)
                 G_samples = []
                 for example in examples:

@@ -14,7 +14,7 @@ def random_laplace(shape,sensitivity=1.0,epsilon=0.2):
     return tf.clip_by_norm(tf.clip_by_value(rand_lap, -3.0,3.0),sensitivity)
 
 class seq2CNN(object):  
-    def __init__(self,embeddings,filter_sizes, max_summary_length, rnn_size, vocab_to_int, num_filters, vocab_size, embedding_size,sensitivity,noise_epsilon,l2_reg_lambda):
+    def __init__(self,embeddings,filter_sizes, max_summary_length, rnn_size, vocab_to_int, num_filters, vocab_size, embedding_size):
         
         self.input_x = tf.placeholder(tf.int32, [None, None], name='input_x')            
         self.dropout_keep_prob = tf.placeholder(tf.float32, name='dropout_keep_prob')
@@ -24,7 +24,7 @@ class seq2CNN(object):
         self.summary_length = tf.placeholder(tf.int32, (None,), name='summary_length')
         self.seq_lambda = tf.placeholder(tf.float32, name='seq_lambda') 
         self.is_training = tf.placeholder(tf.bool, name='is_training')
-        
+        self.enc_noise = tf.placeholder(tf.float32,[None,None,512],name='enc_noise')
         with tf.device('/cpu:0'),tf.name_scope('embedding'):
             embeddings = tf.get_variable(name='embedding_W',initializer=embeddings)
             #embeddings=embeddings
@@ -35,13 +35,9 @@ class seq2CNN(object):
         with tf.name_scope('seq2seq'):
             batch_size = tf.reshape(self.batch_size, [])
             enc_output, enc_state = encoding_layer(rnn_size, self.text_length, enc_embed_input, self.dropout_keep_prob)
-            #enc_noise = tf.random_normal(shape=tf.shape(enc_output), mean=0.0, stddev=z_noise_stddev, dtype=tf.float32)
-            enc_noise = random_laplace(shape=tf.shape(enc_output),sensitivity=sensitivity, epsilon=noise_epsilon)
-            enc_output = tf.add(enc_output,enc_noise)
+            enc_output = tf.add(enc_output,self.enc_noise)
             dec_input = process_encoding_input(self.targets, vocab_to_int, batch_size)
             dec_embed_input = tf.nn.embedding_lookup(embeddings, dec_input)
-            #dec_noise = random_laplace(shape=tf.shape(dec_embed_input), epsilon=noise_epsilon)
-            #dec_embed_input = tf.add(dec_embed_input,dec_noise)
             training_logits,inference_logits = decoding_layer(dec_embed_input,
                                                 embeddings,
                                                 enc_output,

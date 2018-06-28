@@ -284,7 +284,7 @@ with tf.Session() as sess:
                 print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; reg_loss: {:.4}'.format(it,D_loss_curr, G_loss_curr, reg_loss_curr))
 
             if it % 1000 == 0: 
-                enc_noise = np.random.uniform(- 0.5,0.5,[mb_size,100]).astype(np.float32)
+                enc_noise = np.random.laplace(0.0,1.0,[mb_size,100]).astype(np.float32)
                 samples = sess.run(G_sample, feed_dict={X: X_mb, N: enc_noise})
                 samples_flat = tf.reshape(samples,[-1,784]).eval()         
                 fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
