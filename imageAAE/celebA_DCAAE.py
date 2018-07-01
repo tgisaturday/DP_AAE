@@ -128,7 +128,7 @@ def autoencoder(x):
             encoder.append(W)
             conv = tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME')
             conv = tf.add(conv,b)            
-            #conv = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=True)
+            conv = tf.contrib.layers.batch_norm(conv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
             output = tf.nn.relu(conv)
             current_input = output
     encoder.reverse()
@@ -155,7 +155,7 @@ def autoencoder(x):
                                      tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                                      strides=[1, 2, 2, 1], padding='SAME')
             deconv = tf.add(deconv,b)
-            #deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
+            deconv = tf.contrib.layers.batch_norm(deconv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
             if layer_i == 3:
                 output = tf.nn.sigmoid(deconv)
             else:
@@ -204,48 +204,48 @@ def discriminator(x):
     with tf.name_scope("Discriminator"):
         conv1 = tf.nn.conv2d(x_tensor, W1, strides=[1,1,1,1],padding='SAME')
         conv1 = tf.add(conv1,b1)
-        #conv1 = tf.contrib.layers.batch_norm(conv1,center=True, scale=True,is_training=True)
+        conv1 = tf.contrib.layers.batch_norm(conv1,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h1 = tf.nn.leaky_relu(conv1,0.2)
     
 
         conv2 = tf.nn.conv2d(h1, W2, strides=[1,2,2,1],padding='SAME')
         conv2 = tf.add(conv2,b2)
-        #conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
+        conv2 = tf.contrib.layers.batch_norm(conv2,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h2 = tf.nn.leaky_relu(conv2,0.2)
     
         conv3 = tf.nn.conv2d(h2, W3, strides=[1,1,1,1],padding='SAME')
         conv3 = tf.add(conv3,b3)
-        #conv3 = tf.contrib.layers.batch_norm(conv3,center=True, scale=True,is_training=True)
+        conv3 = tf.contrib.layers.batch_norm(conv3,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h3 = tf.nn.leaky_relu(conv3,0.2)
         
 
         conv4 = tf.nn.conv2d(h3, W4, strides=[1,2,2,1],padding='SAME')
         conv4 = tf.add(conv4,b4)
-        #conv4 = tf.contrib.layers.batch_norm(conv4,center=True, scale=True,is_training=True)
+        conv4 = tf.contrib.layers.batch_norm(conv4,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h4 = tf.nn.leaky_relu(conv4,0.2)
         
 
         conv5 = tf.nn.conv2d(h4, W5, strides=[1,1,1,1],padding='SAME')
         conv5 = tf.add(conv5,b5)
-        #conv5 = tf.contrib.layers.batch_norm(conv5,center=True, scale=True,is_training=True)
+        conv5 = tf.contrib.layers.batch_norm(conv5,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h5 = tf.nn.leaky_relu(conv5,0.2)
         
 
         conv6 = tf.nn.conv2d(h5, W6, strides=[1,2,2,1],padding='SAME')
         conv6 = tf.add(conv6,b6)
-        #conv6 = tf.contrib.layers.batch_norm(conv6,center=True, scale=True,is_training=True)
+        conv6 = tf.contrib.layers.batch_norm(conv6,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h6 = tf.nn.leaky_relu(conv6,0.2)
         
 
         conv7 = tf.nn.conv2d(h6, W7, strides=[1,1,1,1],padding='SAME')
         conv7 = tf.add(conv7,b7)
-        #conv7 = tf.contrib.layers.batch_norm(conv7,center=True, scale=True,is_training=True)
+        conv7 = tf.contrib.layers.batch_norm(conv7,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h7 = tf.nn.leaky_relu(conv7,0.2)
         
 
         conv8 = tf.nn.conv2d(h7, W8, strides=[1,2,2,1],padding='SAME')
         conv8 = tf.add(conv8,b8)
-        #conv8 = tf.contrib.layers.batch_norm(conv8,center=True, scale=True,is_training=True)
+        conv8 = tf.contrib.layers.batch_norm(conv8,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h9 = tf.nn.leaky_relu(conv8,0.2)
 
         h10 = tf.layers.flatten(h9)
@@ -282,12 +282,12 @@ tf.summary.scalar('reg_loss',reg_loss)
 
 merged = tf.summary.merge_all()
 
-update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+#update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
 
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
-D_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5,beta1=0.5, beta2=0.9)
-G_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5,beta1=0.5, beta2=0.9)
+D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
 
 D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
 G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_A)
@@ -295,9 +295,9 @@ G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_A)
 #D_grad_noised = add_noise_to_gradients(D_grads_and_vars,1.0)
 #G_grad_noised = add_noise_to_gradients(G_grads_and_vars,1.0)
 
-with tf.control_dependencies(update_ops):
-    D_solver = D_optimizer.apply_gradients(D_grads_and_vars, global_step=global_step)
-    G_solver = G_optimizer.apply_gradients(G_grads_and_vars, global_step=global_step)
+#with tf.control_dependencies(update_ops):
+D_solver = D_optimizer.apply_gradients(D_grads_and_vars, global_step=global_step)
+G_solver = G_optimizer.apply_gradients(G_grads_and_vars, global_step=global_step)
 
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
 
