@@ -128,7 +128,7 @@ def autoencoder(x):
             encoder.append(W)
             conv = tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME')
             conv = tf.add(conv,b)            
-            conv = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=True)
+            #conv = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=True)
             output = tf.nn.relu(conv)
             current_input = output
     encoder.reverse()
@@ -155,7 +155,7 @@ def autoencoder(x):
                                      tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                                      strides=[1, 2, 2, 1], padding='SAME')
             deconv = tf.add(deconv,b)
-            deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
+            #deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
             if layer_i == 3:
                 output = tf.nn.sigmoid(deconv)
             else:
@@ -204,48 +204,48 @@ def discriminator(x):
     with tf.name_scope("Discriminator"):
         conv1 = tf.nn.conv2d(x_tensor, W1, strides=[1,1,1,1],padding='SAME')
         conv1 = tf.add(conv1,b1)
-        conv1 = tf.contrib.layers.batch_norm(conv1,center=True, scale=True,is_training=True)
+        #conv1 = tf.contrib.layers.batch_norm(conv1,center=True, scale=True,is_training=True)
         h1 = tf.nn.leaky_relu(conv1,0.2)
     
 
         conv2 = tf.nn.conv2d(h1, W2, strides=[1,2,2,1],padding='SAME')
         conv2 = tf.add(conv2,b2)
-        conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
+        #conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
         h2 = tf.nn.leaky_relu(conv2,0.2)
     
         conv3 = tf.nn.conv2d(h2, W3, strides=[1,1,1,1],padding='SAME')
         conv3 = tf.add(conv3,b3)
-        conv3 = tf.contrib.layers.batch_norm(conv3,center=True, scale=True,is_training=True)
+        #conv3 = tf.contrib.layers.batch_norm(conv3,center=True, scale=True,is_training=True)
         h3 = tf.nn.leaky_relu(conv3,0.2)
         
 
         conv4 = tf.nn.conv2d(h3, W4, strides=[1,2,2,1],padding='SAME')
         conv4 = tf.add(conv4,b4)
-        conv4 = tf.contrib.layers.batch_norm(conv4,center=True, scale=True,is_training=True)
+        #conv4 = tf.contrib.layers.batch_norm(conv4,center=True, scale=True,is_training=True)
         h4 = tf.nn.leaky_relu(conv4,0.2)
         
 
         conv5 = tf.nn.conv2d(h4, W5, strides=[1,1,1,1],padding='SAME')
         conv5 = tf.add(conv5,b5)
-        conv5 = tf.contrib.layers.batch_norm(conv5,center=True, scale=True,is_training=True)
+        #conv5 = tf.contrib.layers.batch_norm(conv5,center=True, scale=True,is_training=True)
         h5 = tf.nn.leaky_relu(conv5,0.2)
         
 
         conv6 = tf.nn.conv2d(h5, W6, strides=[1,2,2,1],padding='SAME')
         conv6 = tf.add(conv6,b6)
-        conv6 = tf.contrib.layers.batch_norm(conv6,center=True, scale=True,is_training=True)
+        #conv6 = tf.contrib.layers.batch_norm(conv6,center=True, scale=True,is_training=True)
         h6 = tf.nn.leaky_relu(conv6,0.2)
         
 
         conv7 = tf.nn.conv2d(h6, W7, strides=[1,1,1,1],padding='SAME')
         conv7 = tf.add(conv7,b7)
-        conv7 = tf.contrib.layers.batch_norm(conv7,center=True, scale=True,is_training=True)
+        #conv7 = tf.contrib.layers.batch_norm(conv7,center=True, scale=True,is_training=True)
         h7 = tf.nn.leaky_relu(conv7,0.2)
         
 
         conv8 = tf.nn.conv2d(h7, W8, strides=[1,2,2,1],padding='SAME')
         conv8 = tf.add(conv8,b8)
-        conv8 = tf.contrib.layers.batch_norm(conv8,center=True, scale=True,is_training=True)
+        #conv8 = tf.contrib.layers.batch_norm(conv8,center=True, scale=True,is_training=True)
         h9 = tf.nn.leaky_relu(conv8,0.2)
 
         h10 = tf.layers.flatten(h9)
@@ -262,7 +262,7 @@ A_true_flat = tf.reshape(X, [-1,64,64,3])
 global_step = tf.Variable(0, name="global_step", trainable=False)
 reg_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
-G_loss = -tf.reduce_mean(D_fake_logits) + 10.0*reg_loss
+G_loss = -tf.reduce_mean(D_fake_logits) + reg_loss
 
 # Gradient Penalty
 epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
@@ -286,8 +286,8 @@ update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
 
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
-D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
-G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+D_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5,beta1=0.5, beta2=0.9)
+G_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5,beta1=0.5, beta2=0.9)
 
 D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
 G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_A)
@@ -320,10 +320,10 @@ with tf.Session() as sess:
     i=0
     for it in range(1000000000):
         X_mb = next_batch(mb_size, x_train) 
-        enc_noise = np.random.normal(0.0,1.0,[mb_size,100]).astype(np.float32) 
+        enc_noise = np.random.laplace(0.0,1.0,[mb_size,100]).astype(np.float32)  
         _, D_loss_curr,_ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb, N:enc_noise})      
         X_mb = next_batch(mb_size, x_train)
-        enc_noise = np.random.normal(0.0,1.0,[mb_size,100]).astype(np.float32) 
+        enc_noise = np.random.laplace(0.0,1.0,[mb_size,100]).astype(np.float32) 
         summary,_, G_loss_curr, reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb, N:enc_noise})
   
         current_step = tf.train.global_step(sess, global_step)
@@ -334,7 +334,7 @@ with tf.Session() as sess:
             print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; reg_loss: {:.4}'.format(it,D_loss_curr,G_loss_curr, reg_loss_curr))
 
         if it % 1000 == 0:
-            enc_noise = np.random.laplace(0.0,1.0,[mb_size,100]).astype(np.float32)
+            enc_noise = np.random.laplace(0.0,1.0,[mb_size,100]).astype(np.float32) 
             samples = sess.run(G_sample, feed_dict={X: X_mb, N: enc_noise})
             samples_flat = tf.reshape(samples,[-1,64,64,3]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))

@@ -27,9 +27,9 @@ def random_laplace(shape,sensitivity, epsilon):
     rand_lap= - (sensitivity/epsilon)*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
     return tf.clip_by_norm(tf.clip_by_value(rand_lap, -3.0,3.0),sensitivity)
 
-mb_size = 256
+mb_size = 128
 X_dim = 1024
-len_x_train = 50000
+len_x_train = 604388
 
 def next_batch(num, data, shuffle=True):
     '''
@@ -88,14 +88,14 @@ for i in range(x_.shape[3]):
     x_train.append(x_[:,:,:,i])
 x_train = np.asarray(x_train)
 
-#extra_dict = sio.loadmat(extra_location)
-#x_ex = np.asarray(extra_dict['X'])
-#x_extra = []
-#for i in range(x_ex.shape[3]):
-#    x_extra.append(x_ex[:,:,:,i])
-#x_extra = np.asarray(x_extra)
+extra_dict = sio.loadmat(extra_location)
+x_ex = np.asarray(extra_dict['X'])
+x_extra = []
+for i in range(x_ex.shape[3]):
+    x_extra.append(x_ex[:,:,:,i])
+x_extra = np.asarray(x_extra)
 
-#x_train = np.concatenate((x_train, x_extra), axis=0)
+x_train = np.concatenate((x_train, x_extra), axis=0)
 x_train = normalize(x_train)
 
 
@@ -138,7 +138,7 @@ def autoencoder(x):
             encoder.append(W)
             conv = tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME')
             conv = tf.add(conv,b)            
-            conv = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=True)
+            #conv = tf.contrib.layers.batch_norm(conv,center=True, scale=True,is_training=True)
             output = tf.nn.relu(conv)
             current_input = output
     encoder.reverse()
@@ -166,7 +166,7 @@ def autoencoder(x):
                                      tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                                      strides=[1, 2, 2, 1], padding='SAME')
             deconv = tf.add(deconv,b)
-            deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
+            #deconv = tf.contrib.layers.batch_norm(deconv,center=True, scale=True,is_training=True)
             if layer_i == 2:
                 output = tf.nn.sigmoid(deconv)
             else:
@@ -212,34 +212,34 @@ def discriminator(x):
     with tf.name_scope("Discriminator"):
         conv1 = tf.nn.conv2d(x_tensor, W1, strides=[1,1,1,1],padding='SAME')
         conv1 = tf.add(conv1,b1)
-        conv1 = tf.contrib.layers.batch_norm(conv1,center=True, scale=True,is_training=True)
+        #conv1 = tf.contrib.layers.batch_norm(conv1,center=True, scale=True,is_training=True)
         h1 = tf.nn.leaky_relu(conv1,0.2)
     
         conv2 = tf.nn.conv2d(h1, W2, strides=[1,2,2,1],padding='SAME')
         conv2 = tf.add(conv2,b2)
-        conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
+        #conv2 = tf.contrib.layers.batch_norm(conv2,center=True, scale=True,is_training=True)
         h2 = tf.nn.leaky_relu(conv2,0.2)
     
 
         conv3 = tf.nn.conv2d(h2, W3, strides=[1,1,1,1],padding='SAME')
         conv3 = tf.add(conv3,b3)
-        conv3 = tf.contrib.layers.batch_norm(conv3,center=True, scale=True,is_training=True)
+        #conv3 = tf.contrib.layers.batch_norm(conv3,center=True, scale=True,is_training=True)
         h3 = tf.nn.leaky_relu(conv3,0.2)
         
 
         conv4 = tf.nn.conv2d(h3, W4, strides=[1,2,2,1],padding='SAME')
         conv4 = tf.add(conv4,b4)
-        conv4 = tf.contrib.layers.batch_norm(conv4,center=True, scale=True,is_training=True)
+        #conv4 = tf.contrib.layers.batch_norm(conv4,center=True, scale=True,is_training=True)
         h4 = tf.nn.leaky_relu(conv4,0.2)
 
         conv5 = tf.nn.conv2d(h4, W5, strides=[1,1,1,1],padding='SAME')
         conv5 = tf.add(conv5,b5)
-        conv5 = tf.contrib.layers.batch_norm(conv5,center=True, scale=True,is_training=True)
+        #conv5 = tf.contrib.layers.batch_norm(conv5,center=True, scale=True,is_training=True)
         h5 = tf.nn.leaky_relu(conv5,0.2)
         
         conv6 = tf.nn.conv2d(h5, W6, strides=[1,2,2,1],padding='SAME')
         conv6 = tf.add(conv6,b6)
-        conv6 = tf.contrib.layers.batch_norm(conv6,center=True, scale=True,is_training=True)
+        #conv6 = tf.contrib.layers.batch_norm(conv6,center=True, scale=True,is_training=True)
         h6 = tf.nn.leaky_relu(conv6,0.2)
 
         h7 = tf.layers.flatten(h6)
@@ -281,8 +281,8 @@ update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
 
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
-D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
-G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+D_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5,beta1=0.5, beta2=0.9)
+G_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5,beta1=0.5, beta2=0.9)
 
 D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
 G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_A)
@@ -314,10 +314,10 @@ with tf.Session() as sess:
     i = 0
     for it in range(10000000):
         X_mb = next_batch(mb_size, x_train)
-        enc_noise = np.random.normal(0.0,1.0,[mb_size,100]).astype(np.float32)     
+        enc_noise = np.random.laplace(0.0,1.0,[mb_size,100]).astype(np.float32)     
         _, D_loss_curr,_ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb, N: enc_noise})
         X_mb = next_batch(mb_size, x_train)
-        enc_noise = np.random.normal(0.0,1.0,[mb_size,100]).astype(np.float32)       
+        enc_noise = np.random.laplace(0.0,1.0,[mb_size,100]).astype(np.float32)      
         summary,_, G_loss_curr,reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb, N: enc_noise})
         
         current_step = tf.train.global_step(sess, global_step)
@@ -327,7 +327,7 @@ with tf.Session() as sess:
             print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; reg_loss: {:.4}'.format(it,D_loss_curr,G_loss_curr, reg_loss_curr))
 
         if it % 1000 == 0:
-            enc_noise = np.random.normal(0.0,1.0,[mb_size,100]).astype(np.float32)
+            enc_noise = np.random.laplace(0.0,1.0,[mb_size,100]).astype(np.float32) 
             samples = sess.run(G_sample, feed_dict={X: X_mb,N: enc_noise})
             samples_flat = tf.reshape(samples,[-1,32,32,3]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
