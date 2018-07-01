@@ -1,5 +1,4 @@
 import tensorflow as tf
-from tensorflow.python.keras._impl.keras.datasets.cifar10 import load_data
 import numpy as np
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
@@ -89,14 +88,14 @@ for i in range(x_.shape[3]):
     x_train.append(x_[:,:,:,i])
 x_train = np.asarray(x_train)
 
-extra_dict = sio.loadmat(extra_location)
-x_ex = np.asarray(extra_dict['X'])
-x_extra = []
-for i in range(x_ex.shape[3]):
-    x_extra.append(x_ex[:,:,:,i])
-x_extra = np.asarray(x_extra)
+#extra_dict = sio.loadmat(extra_location)
+#x_ex = np.asarray(extra_dict['X'])
+#x_extra = []
+#for i in range(x_ex.shape[3]):
+#    x_extra.append(x_ex[:,:,:,i])
+#x_extra = np.asarray(x_extra)
 
-x_train = np.concatenate((x_train, x_extra), axis=0)
+#x_train = np.concatenate((x_train, x_extra), axis=0)
 x_train = normalize(x_train)
 
 
