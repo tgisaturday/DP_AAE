@@ -205,7 +205,7 @@ def train_cnn(dataset_name):
             global_step = tf.Variable(0, name="global_step", trainable=False)            
             num_batches_per_epoch = int((len(x_train)-1)/params['batch_size']) + 1
             epsilon = params['epsilon']
-            learning_rate = tf.train.exponential_decay(params['learning_rate'], global_step,num_batches_per_epoch, 0.95, staircase=True)
+            learning_rate = params['learning_rate']
             update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
             grads_and_vars = tf.train.AdamOptimizer(learning_rate=learning_rate).compute_gradients(cnn.A_loss)
             gradients, variables = zip(*grads_and_vars)
@@ -213,8 +213,8 @@ def train_cnn(dataset_name):
             theta_G = [ var for var in variables if var not in theta_D]
 
             with tf.control_dependencies(update_ops):
-                train_D = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cnn.D_loss,var_list=theta_D, global_step=global_step)
-                train_G = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cnn.G_loss,var_list=theta_G,global_step=global_step)            
+                train_D = tf.train.AdamOptimizer(learning_rate=learning_rate,beta1=0.5, beta2=0.9).minimize(cnn.D_loss,var_list=theta_D, global_step=global_step)
+                train_G = tf.train.AdamOptimizer(learning_rate=learning_rate,beta1=0.5, beta2=0.9).minimize(cnn.G_loss,var_list=theta_G,global_step=global_step)            
             timestamp = str(int(time.time()))
             out_dir = os.path.abspath(os.path.join(os.path.curdir, dataset_name + "_" + timestamp))
 
@@ -237,7 +237,7 @@ def train_cnn(dataset_name):
                     cnn.dropout_keep_prob: params['dropout_keep_prob'],
                     cnn.seq_lambda: seq_lambda,                    
                     cnn.is_training: True,
-                    cnn.enc_noise: np.random.normal(0.0,1.0,[len(x_batch),max_document_length,512]).astype(np.float32)
+                    cnn.enc_noise: np.random.uniform(-1.0,1.0,[len(x_batch),max_document_length,512]).astype(np.float32)
                 }
                 
                 summary, _, step, D_loss, G_loss,A_loss = sess.run([cnn.merged, train_D, global_step, cnn.D_loss, cnn.G_loss,cnn.A_loss], feed_dict)
@@ -255,7 +255,7 @@ def train_cnn(dataset_name):
                     cnn.dropout_keep_prob: params['dropout_keep_prob'],
                     cnn.seq_lambda: seq_lambda,
                     cnn.is_training: True,
-                    cnn.enc_noise: np.random.normal(0.0,1.0,[len(x_batch),max_document_length,512]).astype(np.float32)}
+                    cnn.enc_noise: np.random.uniform(-1.0,1.0,[len(x_batch),max_document_length,512]).astype(np.float32)}
                 summary, _, step, D_loss, G_loss,A_loss = sess.run([cnn.merged, train_G, global_step, cnn.D_loss, cnn.G_loss, cnn.A_loss], feed_dict)
                 current_step = tf.train.global_step(sess, global_step)
                 train_writer.add_summary(summary,current_step)
@@ -272,7 +272,7 @@ def train_cnn(dataset_name):
                     cnn.dropout_keep_prob: 1.0,
                     cnn.seq_lambda: seq_lambda,                    
                     cnn.is_training: False,
-                    cnn.enc_noise: np.random.laplace(0.0,0.2,[len(x_batch),max_document_length,512]).astype(np.float32)}
+                    cnn.enc_noise: np.random.uniform(-1.0,1.0,[len(x_batch),max_document_length,512]).astype(np.float32)}
                 summary, step, examples = sess.run([cnn.merged,global_step,cnn.training_logits],feed_dict)
                 G_samples = []
                 for example in examples:
