@@ -85,8 +85,8 @@ def train_cnn(dataset_name):
     max_document_length = params['max_length']
     filter_sizes = list(int(x) for x in params['filter_sizes'].split(','))
   
-    if not os.path.exists('out/'):
-        os.makedirs('out/')
+    if not os.path.exists(dataset_name+'out/'):
+        os.makedirs(dataset_name+'out/')
     x_raw, y_raw, target_raw = data_helper.load_data(dataset,dataset_name, max_document_length)
     word_counts = {}
     count_words(word_counts, x_raw)        
@@ -309,7 +309,7 @@ def train_cnn(dataset_name):
                         pad = vocab_to_int['PAD']
                         result =  " ".join([int_to_vocab[j] for j in text if j != pad])
                         Original.append(result)
-                    fp = open('out/{}.txt'.format(current_step),'w')
+                    fp = open(dataset_name+'out/{}.txt'.format(current_step),'w')
                     for i in range(len(G_samples)):
                         print('[Original]',file=fp)
                         print(Original[i],file=fp)
