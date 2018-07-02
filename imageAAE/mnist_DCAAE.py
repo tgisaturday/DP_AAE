@@ -242,8 +242,8 @@ merged = tf.summary.merge_all()
 
 
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
-D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
-G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+D_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5,beta1=0.5, beta2=0.9)
+G_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5,beta1=0.5, beta2=0.9)
 
 D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
 G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_A)
@@ -276,11 +276,12 @@ with tf.Session() as sess:
         i = 0 
         z_loss_curr = 1.0
         noise_epsilon = 0.2
-        enc_noise = np.random.laplace(0.0,z_loss_curr/noise_epsilon,[mb_size,100]).astype(np.float32) 
         for it in range(1000000000):
             X_mb, Y_mb = mnist.train.next_batch(mb_size)
-            _, D_loss_curr,z_loss_curr, _ = sess.run([D_solver, D_loss, z_loss, clip_D],feed_dict={X: X_mb, N: enc_noise})
             enc_noise = np.random.laplace(0.0,z_loss_curr/noise_epsilon,[mb_size,100]).astype(np.float32) 
+            _, D_loss_curr,z_loss_curr, _ = sess.run([D_solver, D_loss, z_loss, clip_D],feed_dict={X: X_mb, N: enc_noise})
+            X_mb, Y_mb = mnist.train.next_batch(mb_size)
+            enc_noise = np.random.laplace(0.0,z_loss_curr/noise_epsilon,[mb_size,100]).astype(np.float32)  
             summary,_, G_loss_curr,z_loss_curr  = sess.run([merged,G_solver, G_loss,z_loss],feed_dict={X: X_mb, N: enc_noise})
 
             current_step = tf.train.global_step(sess, global_step)
