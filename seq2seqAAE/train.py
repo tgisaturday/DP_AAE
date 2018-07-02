@@ -237,7 +237,7 @@ def train_cnn(dataset_name):
                     cnn.dropout_keep_prob: params['dropout_keep_prob'],
                     cnn.seq_lambda: seq_lambda,                    
                     cnn.is_training: True,
-                    cnn.enc_noise: np.random.laplace(0.0,1.0/params['noise_epsilon'][len(x_batch),max_document_length,512]).astype(np.float32)
+                    cnn.enc_noise: np.random.laplace(0.0,1.0/params['noise_epsilon'],[len(x_batch),max_document_length,512]).astype(np.float32)
                 }
                 
                 summary, _, step, D_loss, G_loss,A_loss = sess.run([cnn.merged, train_D, global_step, cnn.D_loss, cnn.G_loss,cnn.A_loss], feed_dict)
@@ -298,7 +298,6 @@ def train_cnn(dataset_name):
                 current_step = tf.train.global_step(sess, global_step)
                 seq_lambda = exponential_lambda_decay(params['seq_lambda'], current_step,num_batches_per_epoch, 0.95, staircase=True)              
                 D_loss, G_loss, A_loss = D_train_step(x_train_batch,target_train_batch,t_train_batch,s_train_batch,seq_lambda)
-                noise_sigma = math.sqrt(2*math.log(1.25/noise_delta))*A_loss/noise_epsilon
                 D_loss, G_loss, A_loss = G_train_step(x_train_batch,target_train_batch,t_train_batch,s_train_batch,seq_lambda)
                 #Step 4.1: evaluate the model with x_dev and y_dev (batch by batch)
                 if current_step % 100 == 0:
