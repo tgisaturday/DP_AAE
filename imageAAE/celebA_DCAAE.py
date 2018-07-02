@@ -31,7 +31,7 @@ def random_laplace(shape,sensitivity, epsilon):
     rand_lap= - (sensitivity/epsilon)*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
     return tf.clip_by_norm(tf.clip_by_value(rand_lap, -3.0,3.0),sensitivity)
 
-mb_size = 128
+mb_size = 64
 X_dim = 4096
 
 
@@ -260,9 +260,9 @@ D_fake_logits = discriminator(G_sample)
 A_true_flat = tf.reshape(X, [-1,64,64,3])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
-reg_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
+l2_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
-G_loss = -tf.reduce_mean(D_fake_logits) + reg_loss
+G_loss = -tf.reduce_mean(D_fake_logits)
 
 # Gradient Penalty
 epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
@@ -278,7 +278,7 @@ tf.summary.image('Original',A_true_flat)
 tf.summary.image('G_sample',G_sample)
 tf.summary.scalar('D_loss', D_loss)
 tf.summary.scalar('G_loss',G_loss)
-tf.summary.scalar('reg_loss',reg_loss)
+tf.summary.scalar('l2_loss',l2_loss)
 
 merged = tf.summary.merge_all()
 
@@ -318,23 +318,26 @@ with tf.Session() as sess:
     train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'celebA',sess.graph)
     sess.run(tf.global_variables_initializer())
     i=0
+    l2_loss_curr = 1.0
+    noise_delta = 1.0
+    noise_epsilon = 0.2
+    noise_sigma = math.sqrt(2*math.log(1.25/noise_delta))*l2_loss_curr/noise_epsilon
+    enc_noise = np.random.normal(0.0,noise_sigma,[mb_size,100]).astype(np.float32) 
     for it in range(1000000000):
         X_mb = next_batch(mb_size, x_train) 
-        enc_noise = np.random.laplace(0.0,1.0,[mb_size,100]).astype(np.float32)  
-        _, D_loss_curr,_ = sess.run([D_solver, D_loss,clip_D],feed_dict={X: X_mb, N:enc_noise})      
-        X_mb = next_batch(mb_size, x_train)
-        enc_noise = np.random.laplace(0.0,1.0,[mb_size,100]).astype(np.float32) 
-        summary,_, G_loss_curr, reg_loss_curr  = sess.run([merged,G_solver, G_loss,reg_loss],feed_dict={X: X_mb, N:enc_noise})
+        _, D_loss_curr,l2_loss_curr, _ = sess.run([D_solver, D_loss, l2_loss, clip_D],feed_dict={X: X_mb, N: enc_noise})
+        noise_sigma = math.sqrt(2*math.log(1.25/noise_delta))*l2_loss_curr/noise_epsilon
+        enc_noise = np.random.normal(0.0,noise_sigma,[mb_size,100]).astype(np.float32) 
+        summary,_, G_loss_curr,l2_loss_curr  = sess.run([merged,G_solver, G_loss,l2_loss],feed_dict={X: X_mb, N: enc_noise})
   
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
 
         
         if it % 100 == 0:
-            print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; reg_loss: {:.4}'.format(it,D_loss_curr,G_loss_curr, reg_loss_curr))
+            print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; l2_loss: {:.4}'.format(it,D_loss_curr,G_loss_curr, l2_loss_curr))
 
         if it % 1000 == 0:
-            enc_noise = np.random.laplace(0.0,1.0,[mb_size,100]).astype(np.float32) 
             samples = sess.run(G_sample, feed_dict={X: X_mb, N: enc_noise})
             samples_flat = tf.reshape(samples,[-1,64,64,3]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
