@@ -316,7 +316,7 @@ with tf.Session() as sess:
         train_writer.add_summary(summary,current_step)
         
         if it % 100 == 0:
-            print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; reg_loss: {:.4}'.format(it,D_loss_curr,G_loss_curr, reg_loss_curr))
+            print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; l2_loss: {:.4}'.format(it,D_loss_curr,G_loss_curr, l2_loss_curr))
 
         if it % 1000 == 0:
             samples = sess.run(G_sample, feed_dict={X: X_mb,N: enc_noise})

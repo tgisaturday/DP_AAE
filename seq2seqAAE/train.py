@@ -227,7 +227,7 @@ def train_cnn(dataset_name):
             saver = tf.train.Saver(tf.global_variables())
 
             # One training step: train the model with one batch
-            def D_train_step(x_batch, target_batch,t_batch,s_batch,seq_lambda):
+            def D_train_step(x_batch, target_batch,t_batch,s_batch,seq_lambda,noise_sigma):
                 feed_dict = {
                     cnn.input_x: x_batch,
                     cnn.targets: target_batch,
@@ -237,7 +237,7 @@ def train_cnn(dataset_name):
                     cnn.dropout_keep_prob: params['dropout_keep_prob'],
                     cnn.seq_lambda: seq_lambda,                    
                     cnn.is_training: True,
-                    cnn.enc_noise: np.random.uniform(-1.0,1.0,[len(x_batch),max_document_length,512]).astype(np.float32)
+                    cnn.enc_noise: np.random.normal(0.0,noise_sigma,[len(x_batch),max_document_length,512]).astype(np.float32)
                 }
                 
                 summary, _, step, D_loss, G_loss,A_loss = sess.run([cnn.merged, train_D, global_step, cnn.D_loss, cnn.G_loss,cnn.A_loss], feed_dict)
@@ -245,7 +245,7 @@ def train_cnn(dataset_name):
                 train_writer.add_summary(summary,current_step)
                 return D_loss, G_loss, A_loss
             
-            def G_train_step(x_batch, target_batch,t_batch,s_batch,seq_lambda):
+            def G_train_step(x_batch, target_batch,t_batch,s_batch,seq_lambda,noise_sigma):
                 feed_dict = {
                     cnn.input_x: x_batch,
                     cnn.targets: target_batch,
@@ -255,14 +255,14 @@ def train_cnn(dataset_name):
                     cnn.dropout_keep_prob: params['dropout_keep_prob'],
                     cnn.seq_lambda: seq_lambda,
                     cnn.is_training: True,
-                    cnn.enc_noise: np.random.uniform(-1.0,1.0,[len(x_batch),max_document_length,512]).astype(np.float32)}
+                    cnn.enc_noise: np.random.normal(0.0,noise_sigma,[len(x_batch),max_document_length,512]).astype(np.float32)}
                 summary, _, step, D_loss, G_loss,A_loss = sess.run([cnn.merged, train_G, global_step, cnn.D_loss, cnn.G_loss, cnn.A_loss], feed_dict)
                 current_step = tf.train.global_step(sess, global_step)
                 train_writer.add_summary(summary,current_step)
                 return D_loss, G_loss, A_loss
             
             # One evaluation step: evaluate the model with one batch
-            def dev_step(x_batch,target_batch, t_batch,s_batch,seq_lambda):
+            def dev_step(x_batch,target_batch, t_batch,s_batch,seq_lambda,noise_sigma):
                 feed_dict = {
                     cnn.input_x: x_batch, 
                     cnn.targets: target_batch,
@@ -272,7 +272,7 @@ def train_cnn(dataset_name):
                     cnn.dropout_keep_prob: 1.0,
                     cnn.seq_lambda: seq_lambda,                    
                     cnn.is_training: False,
-                    cnn.enc_noise: np.random.uniform(-1.0,1.0,[len(x_batch),max_document_length,512]).astype(np.float32)}
+                    cnn.enc_noise: np.random.normal(0.0,noise_sigma,[len(x_batch),max_document_length,512]).astype(np.float32)}
                 summary, step, examples = sess.run([cnn.merged,global_step,cnn.training_logits],feed_dict)
                 G_samples = []
                 for example in examples:
@@ -290,20 +290,23 @@ def train_cnn(dataset_name):
             train_batches = data_helper.batch_iter(list(zip(x_train,target_train,t_train,s_train)), params['batch_size'],
                                                    params['num_epochs'])
             best_accuracy, best_at_step = 0, 0
-
+            A_loss = 1.0
+            noise_delta = params['noise_delta']
+            noise_epsilon = params['noise_epsilon']
+            noise_sigma = math.sqrt(2*math.log(1.25/noise_delta))*A_loss/noise_epsilon
             #Step 4: train the cnn model with x_train and y_train (batch by batch)\
             for train_batch in train_batches:
                 x_train_batch,target_train_batch, t_train_batch,s_train_batch = zip(*train_batch)
                 current_step = tf.train.global_step(sess, global_step)
-                seq_lambda = exponential_lambda_decay(params['seq_lambda'], current_step,num_batches_per_epoch, 0.95, staircase=True)                 
-                D_loss, G_loss, A_loss = D_train_step(x_train_batch,target_train_batch,t_train_batch,s_train_batch,seq_lambda)
- 
-                D_loss, G_loss, A_loss = G_train_step(x_train_batch,target_train_batch,t_train_batch,s_train_batch,seq_lambda)
+                seq_lambda = exponential_lambda_decay(params['seq_lambda'], current_step,num_batches_per_epoch, 0.95, staircase=True)              
+                D_loss, G_loss, A_loss = D_train_step(x_train_batch,target_train_batch,t_train_batch,s_train_batch,seq_lambda,noise_sigma)
+                noise_sigma = math.sqrt(2*math.log(1.25/noise_delta))*l2_loss_curr/noise_epsilon
+                D_loss, G_loss, A_loss = G_train_step(x_train_batch,target_train_batch,t_train_batch,s_train_batch,seq_lambda,noise_sigma)
                 #Step 4.1: evaluate the model with x_dev and y_dev (batch by batch)
                 if current_step % 100 == 0:
                     print('step: {} D_loss: {:0.4f} G_loss: {:0.4f} A_loss: {:0.4f}'.format(current_step,D_loss,G_loss,A_loss))
                 if current_step % 1000 == 0:
-                    G_samples = dev_step(x_train_batch,target_train_batch,t_train_batch,s_train_batch,seq_lambda)
+                    G_samples = dev_step(x_train_batch,target_train_batch,t_train_batch,s_train_batch,seq_lambda,noise_sigma)
                     Original = []
                     for text in x_train_batch:
                         pad = vocab_to_int['PAD']
@@ -325,7 +328,7 @@ def train_cnn(dataset_name):
             fp_applied = open('{}_dp_applied.csv'.format(dataset_name),'w')
             for test_batch in test_batches:
                 x_test_batch,y_test_batch,target_test_batch, t_test_batch,s_test_batch = zip(*test_batch)
-                G_samples = dev_step(x_test_batch,target_test_batch,t_test_batch,s_test_batch,seq_lambda)
+                G_samples = dev_step(x_test_batch,target_test_batch,t_test_batch,s_test_batch,seq_lambda,noise_sigma)
                 Original = []
                 for text in x_test_batch:
                     pad = vocab_to_int['PAD']
