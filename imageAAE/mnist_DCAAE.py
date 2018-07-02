@@ -104,11 +104,12 @@ def autoencoder(x):
     theta_A.append(W)
     theta_A.append(b)
     z = tf.nn.tanh(tf.nn.xw_plus_b(tf.layers.flatten(current_input), W, b))
+    z_value = z
     z= tf.add(z,N)
     with tf.name_scope("Decoder"):
-        W = tf.Variable(tf.random_normal([100, 4*4*512]))
+        W = tf.transpose(W)
         b = tf.Variable(tf.random_normal([4*4*512]))
-        theta_A.append(W)
+        #theta_A.append(W)
         theta_A.append(b)
         z_ = tf.nn.tanh(tf.nn.xw_plus_b(z, W, b))
         current_input = tf.reshape(z_, [-1, 4, 4, 512])
@@ -131,7 +132,7 @@ def autoencoder(x):
         g_logits = deconv     
 
 
-    return g_logits, g
+    return g_logits, g, z_value
 
 W1 = tf.Variable(xavier_init([3,3,1,32]))
 b1 = tf.Variable(tf.zeros(shape=[32]))
@@ -204,13 +205,14 @@ def discriminator(x):
 #graph = tf.Graph()
 #with graph.as_default():
 
-G_logits,G_sample = autoencoder(X)
+G_logits,G_sample, z_true = autoencoder(X)
+
 D_real_logits = discriminator(X)
 D_fake_logits = discriminator(G_sample)
 A_true_flat = tf.reshape(X, [-1,28,28,1])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
-l2_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
+
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
 G_loss = -tf.reduce_mean(D_fake_logits)
 
@@ -224,11 +226,15 @@ slopes = tf.sqrt(tf.reduce_sum(tf.square(grad_D_X_hat), reduction_indices=red_id
 gradient_penalty = tf.reduce_mean((slopes - 1.) ** 2)
 D_loss = D_loss + 10.0 * gradient_penalty
 
+# Sensitivity
+_, _, z_fake = autoencoder(G_sample)
+z_loss = tf.reduce_mean(tf.abs(z_true - z_fake))
+
 tf.summary.image('Original',A_true_flat)
 tf.summary.image('G_sample',G_sample)
 tf.summary.scalar('D_loss', D_loss)
 tf.summary.scalar('G_loss',G_loss)
-tf.summary.scalar('l2_loss',l2_loss)
+tf.summary.scalar('z_loss',z_loss)
 
 merged = tf.summary.merge_all()
 
@@ -268,23 +274,20 @@ with tf.Session() as sess:
         train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'mnist',sess.graph)
         sess.run(tf.global_variables_initializer())
         i = 0 
-        l2_loss_curr = 1.0
-        noise_delta = 1.0
+        z_loss_curr = 1.0
         noise_epsilon = 0.2
-        noise_sigma = math.sqrt(2*math.log(1.25/noise_delta))*l2_loss_curr/noise_epsilon
-        enc_noise = np.random.normal(0.0,noise_sigma,[mb_size,100]).astype(np.float32) 
+        enc_noise = np.random.laplace(0.0,z_loss_curr/noise_epsilon,[mb_size,100]).astype(np.float32) 
         for it in range(1000000000):
             X_mb, Y_mb = mnist.train.next_batch(mb_size)
-            _, D_loss_curr,l2_loss_curr, _ = sess.run([D_solver, D_loss, l2_loss, clip_D],feed_dict={X: X_mb, N: enc_noise})
-            noise_sigma = math.sqrt(2*math.log(1.25/noise_delta))*l2_loss_curr/noise_epsilon
-            enc_noise = np.random.normal(0.0,noise_sigma,[mb_size,100]).astype(np.float32) 
-            summary,_, G_loss_curr,l2_loss_curr  = sess.run([merged,G_solver, G_loss,l2_loss],feed_dict={X: X_mb, N: enc_noise})
+            _, D_loss_curr,z_loss_curr, _ = sess.run([D_solver, D_loss, z_loss, clip_D],feed_dict={X: X_mb, N: enc_noise})
+            enc_noise = np.random.laplace(0.0,z_loss_curr/noise_epsilon,[mb_size,100]).astype(np.float32) 
+            summary,_, G_loss_curr,z_loss_curr  = sess.run([merged,G_solver, G_loss,z_loss],feed_dict={X: X_mb, N: enc_noise})
 
             current_step = tf.train.global_step(sess, global_step)
             train_writer.add_summary(summary,current_step)
         
             if it % 100 == 0:
-                print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; l2_loss: {:.4}'.format(it,D_loss_curr, G_loss_curr, l2_loss_curr))
+                print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; z_loss: {:.4}'.format(it,D_loss_curr, G_loss_curr, z_loss_curr))
 
             if it % 1000 == 0: 
                 samples = sess.run(G_sample, feed_dict={X: X_mb, N: enc_noise})
