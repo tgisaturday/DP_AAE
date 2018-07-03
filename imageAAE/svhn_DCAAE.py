@@ -242,7 +242,7 @@ global_step = tf.Variable(0, name="global_step", trainable=False)
 
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
 G_loss = -tf.reduce_mean(D_fake_logits)
-sensitivity = tf.reduce_mean(tf.reduce_max(z_value,axis=1)-tf.reduce_min(z_value,axis=1))
+sensitivity = tf.reduce_mean(tf.reduce_max(tf.abs(z_value),axis=1)-tf.reduce_min(tf.abs(z_value),axis=1))
 # Gradient Penalty
 epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
 X_hat = A_true_flat + epsilon * (G_sample - A_true_flat)
