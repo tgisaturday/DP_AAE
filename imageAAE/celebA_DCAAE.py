@@ -31,7 +31,7 @@ def random_laplace(shape,sensitivity, epsilon):
     rand_lap= - (sensitivity/epsilon)*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
     return tf.clip_by_norm(tf.clip_by_value(rand_lap, -3.0,3.0),sensitivity)
 
-mb_size = 64
+mb_size = 128
 X_dim = 4096
 
 
@@ -122,70 +122,38 @@ def autoencoder(x):
             n_input = current_input.get_shape().as_list()[3]
             shapes.append(current_input.get_shape().as_list())
             W = tf.Variable(xavier_init([filter_sizes[layer_i],filter_sizes[layer_i],n_input, n_output]))
-            b = tf.Variable(tf.zeros([n_output]))
-            theta_A.append(W)
-            theta_A.append(b)
             encoder.append(W)
-            conv = tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME')
-            conv = tf.add(conv,b)            
+            conv = tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME')          
             conv = tf.contrib.layers.batch_norm(conv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
             output = tf.nn.relu(conv)
             current_input = output
     encoder.reverse()
     shapes.reverse()
 
-    W = tf.Variable(tf.random_normal([4*4*1024, 100]))
-    b = tf.Variable(tf.random_normal([100]))
-    theta_A.append(W)
-    theta_A.append(b)
-    z = tf.nn.tanh(tf.nn.xw_plus_b(tf.layers.flatten(current_input), W, b))
+    W_fc = tf.Variable(tf.random_normal([4*4*1024, 100]))
+    z = tf.matmul(tf.layers.flatten(current_input), W_fc)
+    z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+    tf.summary.histogram("z_original",z) 
+    #z = tf.nn.relu(z)
     z_value = z
+    #tf.summary.histogram("z_original_relu",z)
+    z= tf.add(z,N)
+    tf.summary.histogram("z_with_noise",z)
 
-    with tf.name_scope("Decoder"):
-        W = tf.transpose(W)
-        b = tf.Variable(tf.random_normal([4*4*1024]))
-        #theta_A.append(W)
-        theta_A.append(b)
-        z_ = tf.nn.tanh(tf.nn.xw_plus_b(z, W, b))
-        current_input = tf.reshape(z_, [-1, 4, 4,1024])
-
-        for layer_i, shape in enumerate(shapes):
-            W_enc = encoder[layer_i]
-            b = tf.Variable(tf.zeros(W_enc.get_shape().as_list()[2]))
-            theta_A.append(b)     
-            deconv = tf.nn.conv2d_transpose(current_input, W_enc,
-                                     tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
-                                     strides=[1, 2, 2, 1], padding='SAME')
-            deconv = tf.add(deconv,b)
-            deconv = tf.contrib.layers.batch_norm(deconv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-            if layer_i == 2:
-                output = tf.nn.sigmoid(deconv)
-            else:
-                output = tf.nn.relu(deconv)
-            current_input = output
-        a = current_input
-        a_logits = deconv 
-        
-    z= z_value    
-    z= tf.add(z,N)    
     with tf.name_scope("Generator"):
-        W = tf.Variable(tf.random_normal([100, 4*4*1024]))
-        b = tf.Variable(tf.random_normal([4*4*1024]))
+        W = W_fc
         theta_G.append(W)
-        theta_G.append(b)
-        z_ = tf.nn.tanh(tf.nn.xw_plus_b(z, W, b))
-        current_input = tf.reshape(z_, [-1, 4, 4,1024])
+        z_ = tf.matmul(z, tf.transpose(W))
+        z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z_ = tf.nn.relu(z_)
+        current_input = tf.reshape(z_, [-1, 4, 4, 1024])
 
         for layer_i, shape in enumerate(shapes):
             W_enc = encoder[layer_i]
-            W = tf.Variable(xavier_init(W_enc.get_shape().as_list()))
-            b = tf.Variable(tf.zeros(W_enc.get_shape().as_list()[2]))
-            theta_G.append(W)
-            theta_G.append(b)     
+            theta_G.append(W_enc)
             deconv = tf.nn.conv2d_transpose(current_input, W_enc,
                                      tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                                      strides=[1, 2, 2, 1], padding='SAME')
-            deconv = tf.add(deconv,b)
             deconv = tf.contrib.layers.batch_norm(deconv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
             if layer_i == 2:
                 output = tf.nn.sigmoid(deconv)
@@ -195,28 +163,20 @@ def autoencoder(x):
         g = current_input
         g_logits = deconv  
 
-    return a_logits, a, g_logits, g, z_value
+    return g_logits, g, z_value
 
 W1 = tf.Variable(xavier_init([3,3,3,64]))
-b1 = tf.Variable(tf.zeros(shape=[64]))
 W2 = tf.Variable(xavier_init([3,3,64,64]))
-b2 = tf.Variable(tf.zeros(shape=[64]))
 W3 = tf.Variable(xavier_init([3,3,64,128]))
-b3 = tf.Variable(tf.zeros(shape=[128]))
 W4 = tf.Variable(xavier_init([3,3,128,128]))
-b4 = tf.Variable(tf.zeros(shape=[128]))
 W5 = tf.Variable(xavier_init([3,3,128,256]))
-b5 = tf.Variable(tf.zeros(shape=[256]))
 W6 = tf.Variable(xavier_init([3,3,256,256]))
-b6 = tf.Variable(tf.zeros(shape=[256]))
-W7 = tf.Variable(xavier_init([3,3,256,512]))
-b7 = tf.Variable(tf.zeros(shape=[512]))    
+W7 = tf.Variable(xavier_init([3,3,256,512]))  
 W8 = tf.Variable(xavier_init([3,3,512,512]))
-b8 = tf.Variable(tf.zeros(shape=[512]))
 W9 = tf.Variable(xavier_init([8192, 1]))
 b9 = tf.Variable(tf.zeros(shape=[1]))
      
-theta_D = [W1,W2,W3,W4,W5,W6,W7,W8,W9,b1,b2,b3,b4,b5,b6,b7,b8,b9]
+theta_D = [W1,W2,W3,W4,W5,W6,W7,W8,W9,b9]
 
 def discriminator(x):
     if len(x.get_shape()) == 3:
@@ -232,48 +192,39 @@ def discriminator(x):
         raise ValueError('Unsupported input dimensions')   
     with tf.name_scope("Discriminator"):
         conv1 = tf.nn.conv2d(x_tensor, W1, strides=[1,1,1,1],padding='SAME')
-        conv1 = tf.add(conv1,b1)
         conv1 = tf.contrib.layers.batch_norm(conv1,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h1 = tf.nn.leaky_relu(conv1,0.2)
     
 
         conv2 = tf.nn.conv2d(h1, W2, strides=[1,2,2,1],padding='SAME')
-        conv2 = tf.add(conv2,b2)
         conv2 = tf.contrib.layers.batch_norm(conv2,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h2 = tf.nn.leaky_relu(conv2,0.2)
     
         conv3 = tf.nn.conv2d(h2, W3, strides=[1,1,1,1],padding='SAME')
-        conv3 = tf.add(conv3,b3)
         conv3 = tf.contrib.layers.batch_norm(conv3,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h3 = tf.nn.leaky_relu(conv3,0.2)
         
 
         conv4 = tf.nn.conv2d(h3, W4, strides=[1,2,2,1],padding='SAME')
-        conv4 = tf.add(conv4,b4)
         conv4 = tf.contrib.layers.batch_norm(conv4,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h4 = tf.nn.leaky_relu(conv4,0.2)
         
 
         conv5 = tf.nn.conv2d(h4, W5, strides=[1,1,1,1],padding='SAME')
-        conv5 = tf.add(conv5,b5)
         conv5 = tf.contrib.layers.batch_norm(conv5,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h5 = tf.nn.leaky_relu(conv5,0.2)
         
 
         conv6 = tf.nn.conv2d(h5, W6, strides=[1,2,2,1],padding='SAME')
-        conv6 = tf.add(conv6,b6)
         conv6 = tf.contrib.layers.batch_norm(conv6,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h6 = tf.nn.leaky_relu(conv6,0.2)
         
-
         conv7 = tf.nn.conv2d(h6, W7, strides=[1,1,1,1],padding='SAME')
-        conv7 = tf.add(conv7,b7)
         conv7 = tf.contrib.layers.batch_norm(conv7,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h7 = tf.nn.leaky_relu(conv7,0.2)
         
 
         conv8 = tf.nn.conv2d(h7, W8, strides=[1,2,2,1],padding='SAME')
-        conv8 = tf.add(conv8,b8)
         conv8 = tf.contrib.layers.batch_norm(conv8,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h9 = tf.nn.leaky_relu(conv8,0.2)
 
@@ -282,7 +233,7 @@ def discriminator(x):
         d = tf.nn.xw_plus_b(h10, W9, b9)
     return d
 
-A_logits,A_sample,G_logits,G_sample, z_true = autoencoder(X)
+G_logits,G_sample,z_value = autoencoder(X)
 
 D_real_logits = discriminator(X)
 D_fake_logits = discriminator(G_sample)
@@ -292,7 +243,7 @@ global_step = tf.Variable(0, name="global_step", trainable=False)
 
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
 G_loss = -tf.reduce_mean(D_fake_logits)
-A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
+sensitivity = tf.reduce_mean(tf.reduce_max(z_value,axis=1)-tf.reduce_min(z_value,axis=1))
 # Gradient Penalty
 epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
 X_hat = A_true_flat + epsilon * (G_sample - A_true_flat)
@@ -303,37 +254,27 @@ slopes = tf.sqrt(tf.reduce_sum(tf.square(grad_D_X_hat), reduction_indices=red_id
 gradient_penalty = tf.reduce_mean((slopes - 1.) ** 2)
 D_loss = D_loss + 10.0 * gradient_penalty
 
-# Sensitivity
-_, _, _, _, z_fake = autoencoder(G_sample)
-z_loss = tf.reduce_mean(tf.abs(z_true - z_fake))
-
 tf.summary.image('Original',A_true_flat)
 tf.summary.image('G_sample',G_sample)
-tf.summary.image('A_sample',A_sample)
+
 tf.summary.scalar('D_loss', D_loss)
 tf.summary.scalar('G_loss',G_loss)
-tf.summary.scalar('A_loss',A_loss)
-tf.summary.scalar('z_loss',z_loss)
+tf.summary.scalar('sensitivity',sensitivity)
+
 merged = tf.summary.merge_all()
-
-#update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-
 
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
 D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
 G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
-A_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+
 
 D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
 G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_G)
-A_grads_and_vars=A_optimizer.compute_gradients(A_loss, var_list=theta_A)
-#D_grad_noised = add_noise_to_gradients(D_grads_and_vars,1.0)
-#G_grad_noised = add_noise_to_gradients(G_grads_and_vars,1.0)
 
-#with tf.control_dependencies(update_ops):
+
 D_solver = D_optimizer.apply_gradients(D_grads_and_vars, global_step=global_step)
 G_solver = G_optimizer.apply_gradients(G_grads_and_vars, global_step=global_step)
-A_solver = A_optimizer.apply_gradients(A_grads_and_vars, global_step=global_step)
+
 
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
 
@@ -353,25 +294,25 @@ if not os.path.exists('dc_out_celebA/'):
 with tf.Session() as sess:
     train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'celebA',sess.graph)
     sess.run(tf.global_variables_initializer())
-    i=0
-    z_loss_curr = 1.0
-    noise_epsilon = 1.0 
+    i=0    
+    average_sensitivity = 1.0
+    decay_rate = 0.999
+    noise_epsilon = 2.0
+        
+    enc_noise = np.random.laplace(0.0,average_sensitivity/noise_epsilon,[mb_size,100]).astype(np.float32)
+    
     for it in range(10000000000):
         X_mb = next_batch(mb_size, x_train) 
-        enc_noise = np.random.laplace(0.0,z_loss_curr/noise_epsilon,[mb_size,100]).astype(np.float32)
-        _, A_loss_curr,z_loss_curr = sess.run([A_solver, A_loss, z_loss],feed_dict={X: X_mb, N: enc_noise})        
-        X_mb = next_batch(mb_size, x_train) 
-        enc_noise = np.random.laplace(0.0,z_loss_curr/noise_epsilon,[mb_size,100]).astype(np.float32) 
-        _, D_loss_curr,z_loss_curr, _ = sess.run([D_solver, D_loss, z_loss, clip_D],feed_dict={X: X_mb, N: enc_noise})
-        X_mb = next_batch(mb_size, x_train) 
-        enc_noise = np.random.laplace(0.0,z_loss_curr/noise_epsilon,[mb_size,100]).astype(np.float32) 
-        summary,_, G_loss_curr,z_loss_curr  = sess.run([merged,G_solver, G_loss,z_loss],feed_dict={X: X_mb, N: enc_noise})
-   
+        _, D_loss_curr, sensitivity_curr, _ = sess.run([D_solver, D_loss,sensitivity, clip_D],feed_dict={X: X_mb, N: enc_noise})
+        average_sensitivity = decay_rate*average_sensitivity + (1.0 - decay_rate)*sensitivity_curr
+        enc_noise = np.random.laplace(0.0,average_sensitivity/noise_epsilon,[mb_size,100]).astype(np.float32)              
+        summary,_, G_loss_curr,sensitivity_curr  = sess.run([merged,G_solver, G_loss, sensitivity],feed_dict={X: X_mb, N: enc_noise})
+
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
         
         if it % 100 == 0:
-                print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; A_loss: {:.4}; z_loss: {:.4}'.format(it,D_loss_curr, G_loss_curr,A_loss_curr, z_loss_curr))
+            print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; sensitivity: {:.4};'.format(it,D_loss_curr, G_loss_curr, average_sensitivity))
 
         if it % 1000 == 0:
             samples = sess.run(G_sample, feed_dict={X: X_mb, N: enc_noise})
