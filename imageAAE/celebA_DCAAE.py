@@ -301,27 +301,31 @@ with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     i=0    
     average_sensitivity = 2.0
-    decay_rate = 0.9999
+    decay_rate = 0.99
     noise_delta = 0.01
-    noise_alpha = 0.95
+    noise_alpha = 0.99
     noise_beta = 0.000001
-    noise_epsilon = 20.0
+    noise_epsilon = 100.0
     noise_sigma = math.sqrt(2*math.log(1.25/noise_delta))*average_sensitivity/noise_epsilon
     enc_noise = np.random.normal(0.0,noise_sigma,[mb_size,100]).astype(np.float32)         
      
     for it in range(1000000000):
         X_mb = next_batch(mb_size, x_train)
-        _, D_loss_curr, A_loss_prev, sensitivity_curr, _ = sess.run([D_solver, D_loss,A_loss,sensitivity, clip_D],feed_dict={X: X_mb, N: enc_noise})
+        _, D_loss_curr, A_loss_curr, sensitivity_curr, _ = sess.run([D_solver, D_loss,A_loss,sensitivity, clip_D],feed_dict={X: X_mb, N: enc_noise})
+        if it == 0:
+            average_sensitivity = sensitivity_curr
+            average_A_loss = A_loss_curr
         average_sensitivity = decay_rate*average_sensitivity + (1.0 - decay_rate)*sensitivity_curr
+        average_A_loss = decay_rate*average_A_loss + (1.0 - decay_rate)*A_loss_curr
+        noise_epsion = noise_epsilon*(A_loss_curr/(average_A_loss+noise_beta))        
         noise_sigma = math.sqrt(2*math.log(1.25/noise_delta))*average_sensitivity/noise_epsilon
         enc_noise = np.random.normal(0.0,noise_sigma,[mb_size,100]).astype(np.float32)               
         summary,_, G_loss_curr,A_loss_curr, sensitivity_curr  = sess.run([merged,G_solver, G_loss,A_loss, sensitivity],feed_dict={X: X_mb, N: enc_noise})
-        noise_epsion = noise_alpha*(noise_epsilon) + (1.0 - noise_alpha)*noise_epsilon*(A_loss_curr/(A_loss_prev+noise_beta))
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
         
         if it % 100 == 0:
-            print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; A_loss:{:.4}; sensitivity: {:.4};'.format(it,D_loss_curr, G_loss_curr, A_loss_curr, average_sensitivity))
+            print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; A_loss:{:.4}; sensitivity: {:.4}; epsilon: {:.4};'.format(it,D_loss_curr, G_loss_curr, A_loss_curr, average_sensitivity,noise_epsilon))
 
         if it % 1000 == 0:
             samples = sess.run(G_sample, feed_dict={X: X_mb, N: enc_noise})
