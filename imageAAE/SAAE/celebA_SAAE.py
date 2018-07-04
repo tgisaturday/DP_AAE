@@ -235,7 +235,7 @@ G_logits,G_sample,z_value = autoencoder(X)
 
 D_real_logits = discriminator(X)
 D_fake_logits = discriminator(G_sample)
-A_true_flat = tf.reshape(X, [-1,28,28,1])
+A_true_flat = tf.reshape(X, [-1,64,64,3])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
 z_norm = tf.norm(z_value,axis=-1)
@@ -292,7 +292,7 @@ if not os.path.exists('dc_out_celebA/'):
 #if not os.path.exists('generated_celebA/'):
     #os.makedirs('generated_celebA/')      
 with tf.Session() as sess:
-    train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'celebA',sess.graph)
+    train_writer = tf.summary.FileWriter('graphs/'+'celebA',sess.graph)
     sess.run(tf.global_variables_initializer())
     i=0    
 

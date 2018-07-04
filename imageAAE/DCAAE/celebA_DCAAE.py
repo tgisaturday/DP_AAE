@@ -297,7 +297,7 @@ if not os.path.exists('dc_out_celebA/'):
 #if not os.path.exists('generated_celebA/'):
     #os.makedirs('generated_celebA/')      
 with tf.Session() as sess:
-    train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'celebA',sess.graph)
+    train_writer = tf.summary.FileWriter('graphs/'+'celebA',sess.graph)
     sess.run(tf.global_variables_initializer())
     i=0    
     average_sensitivity = 2.0

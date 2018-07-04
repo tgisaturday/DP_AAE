@@ -296,7 +296,7 @@ if not os.path.exists('dc_out_svhn/'):
     os.makedirs('dc_out_svhn/')
 
 with tf.Session() as sess:
-    train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'svhn',sess.graph)
+    train_writer = tf.summary.FileWriter'graphs/'+'svhn',sess.graph)
     sess.run(tf.global_variables_initializer())
     i = 0
     average_sensitivity = 2.0

@@ -243,7 +243,7 @@ if not os.path.exists('dc_out_mnist/'):
     os.makedirs('dc_out_mnist/')
             
 with tf.Session() as sess:
-    train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'mnist',sess.graph)
+    train_writer = tf.summary.FileWriter('graphs/'+'mnist',sess.graph)
     sess.run(tf.global_variables_initializer())
     i = 0                  
     for it in range(1000000000):
