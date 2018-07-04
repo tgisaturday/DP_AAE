@@ -88,6 +88,7 @@ def autoencoder(x):
             n_input = current_input.get_shape().as_list()[3]
             shapes.append(current_input.get_shape().as_list())
             W = tf.Variable(xavier_init([filter_sizes[layer_i],filter_sizes[layer_i],n_input, n_output]))
+            theta_G.append(W)
             encoder.append(W)
             conv = tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME')          
             conv = tf.contrib.layers.batch_norm(conv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
@@ -96,27 +97,29 @@ def autoencoder(x):
     encoder.reverse()
     shapes.reverse()
 
-    W_fc = tf.Variable(tf.random_normal([4*4*512, 100]))
-    z = tf.matmul(tf.layers.flatten(current_input), W_fc)
+    W = tf.Variable(tf.random_normal([4*4*512, 100]))
+    theta_G.append(W)
+    z = tf.matmul(tf.layers.flatten(current_input), W)
     z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
     tf.summary.histogram("z_original",z) 
-    #z = tf.nn.relu(z)
+    z = tf.nn.tanh(z)
     z_value = z
-    #tf.summary.histogram("z_original_relu",z)
+    tf.summary.histogram("z_original_tanh",z)
     z= tf.add(z,N)
     tf.summary.histogram("z_with_noise",z)
 
     with tf.name_scope("Generator"):
-        W = W_fc
+        W = tf.Variable(tf.random_normal([100, 4*4*512]))
         theta_G.append(W)
-        z_ = tf.matmul(z, tf.transpose(W))
+        z_ = tf.matmul(z, W)
         z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z_ = tf.nn.relu(z_)
         current_input = tf.reshape(z_, [-1, 4, 4, 512])
 
         for layer_i, shape in enumerate(shapes):
             W_enc = encoder[layer_i]
-            theta_G.append(W_enc)
+            W = tf.Variable(xavier_init(W_enc.get_shape().as_list()))
+            theta_G.append(W)
             deconv = tf.nn.conv2d_transpose(current_input, W_enc,
                                      tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                                      strides=[1, 2, 2, 1], padding='SAME')
@@ -193,10 +196,12 @@ D_fake_logits = discriminator(G_sample)
 A_true_flat = tf.reshape(X, [-1,28,28,1])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
-
+A_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
-G_loss = -tf.reduce_mean(D_fake_logits)
-sensitivity = tf.reduce_mean(tf.reduce_max(tf.abs(z_value),axis=1)-tf.reduce_min(tf.abs(z_value),axis=1))
+G_loss = -tf.reduce_mean(D_fake_logits)+A_loss
+
+z_norm = tf.norm(z_value,axis=-1)
+sensitivity = tf.reduce_max(z_norm)
 # Gradient Penalty
 epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
 X_hat = A_true_flat + epsilon * (G_sample - A_true_flat)
@@ -209,9 +214,9 @@ D_loss = D_loss + 10.0 * gradient_penalty
 
 tf.summary.image('Original',A_true_flat)
 tf.summary.image('G_sample',G_sample)
-
 tf.summary.scalar('D_loss', D_loss)
 tf.summary.scalar('G_loss',G_loss)
+tf.summary.scalar('A_loss',A_loss)
 tf.summary.scalar('sensitivity',sensitivity)
 
 merged = tf.summary.merge_all()
@@ -244,38 +249,42 @@ if not os.path.exists('dc_out_mnist/'):
     os.makedirs('dc_out_mnist/')
             
 with tf.Session() as sess:
-        train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'mnist',sess.graph)
-        sess.run(tf.global_variables_initializer())
-        i = 0
+    train_writer = tf.summary.FileWriter('/home/tgisaturday/Workspace/Taehoon/DP_AAE/imageAAE'+'/graphs/'+'mnist',sess.graph)
+    sess.run(tf.global_variables_initializer())
+    i = 0
+     
+    average_sensitivity = 2.0
+    decay_rate = 0.9999
+    noise_delta = 0.01
+    noise_alpha = 0.95
+    noise_beta = 0.000001
+    noise_epsilon = 20.0
+    noise_sigma = math.sqrt(2*math.log(1.25/noise_delta))*average_sensitivity/noise_epsilon
+    enc_noise = np.random.normal(0.0,noise_sigma,[mb_size,100]).astype(np.float32)         
+       
+    for it in range(1000000000):
+        X_mb, Y_mb = mnist.train.next_batch(mb_size)
+        _, D_loss_curr, A_loss_prev, sensitivity_curr, _ = sess.run([D_solver, D_loss,A_loss,sensitivity, clip_D],feed_dict={X: X_mb, N: enc_noise})
+        average_sensitivity = decay_rate*average_sensitivity + (1.0 - decay_rate)*sensitivity_curr
+        noise_sigma = math.sqrt(2*math.log(1.25/noise_delta))*average_sensitivity/noise_epsilon
+        enc_noise = np.random.normal(0.0,noise_sigma,[mb_size,100]).astype(np.float32)               
+        summary,_, G_loss_curr,A_loss_curr, sensitivity_curr  = sess.run([merged,G_solver, G_loss,A_loss, sensitivity],feed_dict={X: X_mb, N: enc_noise})
+        noise_epsion = noise_alpha*(noise_epsilon) + (1.0 - noise_alpha)*noise_epsilon*(A_loss_curr/(A_loss_prev+noise_beta))
+        current_step = tf.train.global_step(sess, global_step)
+        train_writer.add_summary(summary,current_step)
         
-        average_sensitivity = 1.0
-        decay_rate = 0.999
-        noise_epsilon = 2.0
-        
-        enc_noise = np.random.laplace(0.0,average_sensitivity/noise_epsilon,[mb_size,100]).astype(np.float32)
-        
-        for it in range(1000000000):
-            X_mb, Y_mb = mnist.train.next_batch(mb_size)
-            _, D_loss_curr, sensitivity_curr, _ = sess.run([D_solver, D_loss,sensitivity, clip_D],feed_dict={X: X_mb, N: enc_noise})
-            average_sensitivity = decay_rate*average_sensitivity + (1.0 - decay_rate)*sensitivity_curr
-            enc_noise = np.random.laplace(0.0,average_sensitivity/noise_epsilon,[mb_size,100]).astype(np.float32)              
-            summary,_, G_loss_curr,sensitivity_curr  = sess.run([merged,G_solver, G_loss, sensitivity],feed_dict={X: X_mb, N: enc_noise})
+        if it % 100 == 0:
+            print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; A_loss:{:.4}; sensitivity: {:.4};'.format(it,D_loss_curr, G_loss_curr, A_loss_curr, average_sensitivity))
 
-            current_step = tf.train.global_step(sess, global_step)
-            train_writer.add_summary(summary,current_step)
-        
-            if it % 100 == 0:
-                print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; sensitivity: {:.4};'.format(it,D_loss_curr, G_loss_curr, average_sensitivity))
-
-            if it % 1000 == 0: 
-                samples = sess.run(G_sample, feed_dict={X: X_mb, N: enc_noise})
-                samples_flat = tf.reshape(samples,[-1,784]).eval()         
-                fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
-                plt.savefig('dc_out_mnist/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
-                i += 1
-                plt.close(fig)
-                path = saver.save(sess, checkpoint_prefix, global_step=current_step)
-                print('Saved model at {} at step {}'.format(path, current_step))
+        if it % 1000 == 0: 
+            samples = sess.run(G_sample, feed_dict={X: X_mb, N: enc_noise})
+            samples_flat = tf.reshape(samples,[-1,784]).eval()         
+            fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
+            plt.savefig('dc_out_mnist/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
+            i += 1
+            plt.close(fig)
+            path = saver.save(sess, checkpoint_prefix, global_step=current_step)
+            print('Saved model at {} at step {}'.format(path, current_step))
 '''
         if it% 100000 == 0:
             for ii in range(len_x_train//100):
