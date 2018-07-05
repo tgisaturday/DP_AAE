@@ -82,13 +82,13 @@ def autoencoder(x):
             current_input = output
         encoder.reverse()
         shapes_enc.reverse()
-        W_fc1 = tf.Variable(tf.random_normal([4*4*512, 1000]))
+        W_fc1 = tf.Variable(tf.random_normal([4*4*512, 100]))
         theta_G.append(W_fc1)
         z = tf.matmul(tf.layers.flatten(current_input), W_fc1)
         z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z = tf.nn.relu(z)
         z_value = z
-        W_fc2 = tf.Variable(tf.random_normal([1000, 4*4*512]))
+        W_fc2 = tf.Variable(tf.random_normal([100, 4*4*512]))
         theta_G.append(W_fc2)
         z_ = tf.matmul(z, W_fc2)
         z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
@@ -154,7 +154,7 @@ W5 = tf.Variable(xavier_init([3,3,128,256]))
 W6 = tf.Variable(xavier_init([3,3,256,256]))
 W7 = tf.Variable(xavier_init([4096, 1]))
 b7 = tf.Variable(tf.zeros(shape=[1]))
-W_z = tf.Variable(xavier_init([4096, 1000]))
+W_z = tf.Variable(xavier_init([4096, 100]))
 theta_D = [W1,W2,W3,W4,W5,W6,W7,b7,W_z]
 
 
