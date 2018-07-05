@@ -17,21 +17,7 @@ import time
 initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
-def exponential_lambda_decay(seq_lambda, global_step, decay_steps, decay_rate, staircase=False):
-    global_step = float(global_step)
-    decay_steps = float(decay_steps)
-    decay_rate = float(decay_rate)
-    p = global_step / decay_steps
-    if staircase:
-        p = math.floor(p)    
-    return seq_lambda * math.pow(decay_rate, p)
-
-def random_laplace(shape,sensitivity, epsilon):
-    rand_uniform = tf.random_uniform(shape,-0.5,0.5,dtype=tf.float32)
-    rand_lap= - (sensitivity/epsilon)*tf.multiply(tf.sign(rand_uniform),tf.log(1.0 - 2.0*tf.abs(rand_uniform)))
-    return tf.clip_by_norm(tf.clip_by_value(rand_lap, -3.0,3.0),sensitivity)
-
-mb_size = 128
+mb_size = 64
 X_dim = 4096
 
 
@@ -79,7 +65,7 @@ initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
 X = tf.placeholder(tf.float32, shape=[None, 64, 64, 3])
-N = tf.placeholder(tf.float32, shape=[None, 100])
+
 download_celeb_a("../data")
 data_files = glob(os.path.join("../data/celebA/*.jpg"))
 len_x_train = len(data_files)
@@ -131,7 +117,18 @@ def autoencoder(x):
             current_input = output
         encoder.reverse()
         shapes_enc.reverse()
-
+        W_fc1 = tf.Variable(tf.random_normal([4*4*1024, 100]))
+        theta_G.append(W_fc1)
+        z = tf.matmul(tf.layers.flatten(current_input), W_fc1)
+        z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z = tf.nn.relu(z)
+        z_value = z
+        W_fc2 = tf.Variable(tf.random_normal([100, 4*4*1024]))
+        theta_G.append(W_fc2)
+        z_ = tf.matmul(z, W_fc2)
+        z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z_ = tf.nn.relu(z_)
+        current_input = tf.reshape(z_, [-1, 4, 4, 1024])
         for layer_i, shape in enumerate(shapes_enc):
             W_enc = encoder[layer_i]
             W = tf.Variable(xavier_init(W_enc.get_shape().as_list()))
@@ -162,6 +159,14 @@ def autoencoder(x):
         encoder.reverse()
         shapes_enc.reverse()
 
+        z = tf.matmul(tf.layers.flatten(current_input), tf.transpose(W_fc2))
+        z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z = tf.nn.relu(z)
+        z_value = z
+        z_ = tf.matmul(z, tf.transpose(W_fc1))
+        z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z_ = tf.nn.relu(z_)
+        current_input = tf.reshape(z_, [-1, 4, 4,1024])
         for layer_i, shape in enumerate(shapes_enc):
             W_enc = encoder[layer_i]
             deconv = tf.nn.conv2d_transpose(current_input, W_enc,
@@ -173,8 +178,7 @@ def autoencoder(x):
         a = current_input
         a_logits = deconv        
 
-    return g_logits, g, a_logits, a
-
+    return g_logits, g, a_logits, a, z_value
 W1 = tf.Variable(xavier_init([3,3,3,64]))
 W2 = tf.Variable(xavier_init([3,3,64,64]))
 W3 = tf.Variable(xavier_init([3,3,64,128]))
@@ -185,8 +189,8 @@ W7 = tf.Variable(xavier_init([3,3,256,512]))
 W8 = tf.Variable(xavier_init([3,3,512,512]))
 W9 = tf.Variable(xavier_init([8192, 1]))
 b9 = tf.Variable(tf.zeros(shape=[1]))
-     
-theta_D = [W1,W2,W3,W4,W5,W6,W7,W8,W9,b9]
+W_z = tf.Variable(xavier_init([8192, 100]))     
+theta_D = [W1,W2,W3,W4,W5,W6,W7,W8,W9,b9,W_z]
 
 def discriminator(x):
     if len(x.get_shape()) == 3:
@@ -241,24 +245,23 @@ def discriminator(x):
         h10 = tf.layers.flatten(h9)
         
         d = tf.nn.xw_plus_b(h10, W9, b9)
-    return d
+        z_value = tf.matmul(h10,W_z)
+        z_value = tf.nn.relu(z_value)
+    return d, z_value
 
 
-G_logits,G_sample,A_logits,A_sample = autoencoder(X)
+G_logits,G_sample,A_logits,A_sample, gen_real_z = autoencoder(X)
 
-D_real_logits = discriminator(X)
-D_fake_logits = discriminator(G_sample)
+D_real_logits, disc_real_z = discriminator(X)
+D_fake_logits, disc_fake_z = discriminator(G_sample)
 A_true_flat = tf.reshape(X, [-1,64,64,3])
 
-G_sample_flat = tf.reshape(G_sample,[-1,64*64*3])
-G_norm = tf.norm(G_sample_flat,axis=-1)
-G_sensitivity = tf.reduce_max(G_norm)-tf.reduce_min(G_norm)
-tf.summary.histogram("G_norm",G_norm)
 global_step = tf.Variable(0, name="global_step", trainable=False)
 A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
-D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
-G_loss = -tf.reduce_mean(D_fake_logits)+ G_sensitivity + A_loss
-
+G_z_loss = tf.reduce_mean(tf.pow(disc_real_z - gen_real_z, 2))
+D_z_loss =tf.reduce_mean(tf.pow(disc_fake_z - gen_real_z, 2))
+D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits) + D_z_loss
+G_loss = -tf.reduce_mean(D_fake_logits)- D_z_loss + A_loss  + G_z_loss
 
 
 # Gradient Penalty
@@ -277,12 +280,13 @@ tf.summary.image('A_sample',A_sample)
 tf.summary.scalar('D_loss', D_loss)
 tf.summary.scalar('G_loss',G_loss)
 tf.summary.scalar('A_loss',A_loss)
-tf.summary.scalar('G_sensitivity',G_sensitivity)
+tf.summary.scalar('G_z_loss',G_z_loss)
+tf.summary.scalar('D_z_loss',D_z_loss)
 merged = tf.summary.merge_all()
 
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
-D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
-G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+D_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5,beta1=0.5, beta2=0.9)
+G_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5,beta1=0.5, beta2=0.9)
 
 
 D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
@@ -294,6 +298,7 @@ G_solver = G_optimizer.apply_gradients(G_grads_and_vars, global_step=global_step
 
 
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
+
 
 timestamp = str(int(time.time()))
 out_dir = os.path.abspath(os.path.join(os.path.curdir, "models/celebA_" + timestamp))
@@ -317,19 +322,27 @@ with tf.Session() as sess:
         X_mb = next_batch(mb_size, x_train)
         _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
         X_mb = next_batch(mb_size, x_train)
-        summary,_, G_loss_curr,A_loss_curr,G_sensitivity_curr = sess.run([merged,G_solver, G_loss, A_loss,G_sensitivity],feed_dict={X: X_mb})
+        summary,_, G_loss_curr,A_loss_curr = sess.run([merged,G_solver, G_loss, A_loss],feed_dict={X: X_mb})
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
         
         if it % 100 == 0:
-            print('Iter: {}; D_loss: {:.4}; G_loss: {:.4};  A_loss: {:.4}; G_sensitivity: {:.4};'.format(it,D_loss_curr, G_loss_curr, A_loss_curr,G_sensitivity_curr))
+            print('Iter: {}; D_loss: {:.4}; G_loss: {:.4};  A_loss: {:.4};'.format(it,D_loss_curr, G_loss_curr, A_loss_curr))
+
         if it % 1000 == 0: 
             samples = sess.run(G_sample, feed_dict={X: X_mb})
             samples_flat = tf.reshape(samples,[-1,64,64,3]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
-            plt.savefig('dc_out_celebA/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
-            i += 1
+            plt.savefig('dc_out_celebA/{}_G.png'.format(str(i).zfill(3)), bbox_inches='tight')
             plt.close(fig)
+            samples = sess.run(A_sample, feed_dict={X: X_mb})
+            samples_flat = tf.reshape(samples,[-1,64,64,3]).eval()         
+            fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
+            plt.savefig('dc_out_celebA/{}_A.png'.format(str(i).zfill(3)), bbox_inches='tight')
+            i += 1
+            plt.close(fig)            
+            path = saver.save(sess, checkpoint_prefix, global_step=current_step)
+            print('Saved model at {} at step {}'.format(path, current_step))
 ''' 
         if it% 100000 == 0:
             for ii in range(len_x_train//100):
