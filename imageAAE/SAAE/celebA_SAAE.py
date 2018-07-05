@@ -117,13 +117,13 @@ def autoencoder(x):
             current_input = output
         encoder.reverse()
         shapes_enc.reverse()
-        W_fc1 = tf.Variable(tf.random_normal([4*4*1024, 100]))
+        W_fc1 = tf.Variable(tf.random_normal([4*4*1024, 1000]))
         theta_G.append(W_fc1)
         z = tf.matmul(tf.layers.flatten(current_input), W_fc1)
         z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z = tf.nn.relu(z)
         z_value = z
-        W_fc2 = tf.Variable(tf.random_normal([100, 4*4*1024]))
+        W_fc2 = tf.Variable(tf.random_normal([1000, 4*4*1024]))
         theta_G.append(W_fc2)
         z_ = tf.matmul(z, W_fc2)
         z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
@@ -189,7 +189,7 @@ W7 = tf.Variable(xavier_init([3,3,256,512]))
 W8 = tf.Variable(xavier_init([3,3,512,512]))
 W9 = tf.Variable(xavier_init([8192, 1]))
 b9 = tf.Variable(tf.zeros(shape=[1]))
-W_z = tf.Variable(xavier_init([8192, 100]))     
+W_z = tf.Variable(xavier_init([8192, 1000]))     
 theta_D = [W1,W2,W3,W4,W5,W6,W7,W8,W9,b9,W_z]
 
 def discriminator(x):
@@ -285,8 +285,8 @@ tf.summary.scalar('D_z_loss',D_z_loss)
 merged = tf.summary.merge_all()
 
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
-D_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5,beta1=0.5, beta2=0.9)
-G_optimizer = tf.train.AdamOptimizer(learning_rate=5e-5,beta1=0.5, beta2=0.9)
+D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
 
 
 D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
