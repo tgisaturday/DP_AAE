@@ -61,7 +61,7 @@ initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
 X = tf.placeholder(tf.float32, shape=[None, 32, 32, 3])
-N = tf.placeholder(tf.float32, shape=[None, 100])
+
 train_location = '../data/SVHN/train_32x32.mat'
 extra_location = '../data/SVHN/extra_32x32.mat'
 
@@ -121,7 +121,7 @@ def autoencoder(x):
             encoder.append(W)
             conv = tf.nn.conv2d(current_input, W, strides=[1, 2, 2, 1], padding='SAME')          
             conv = tf.contrib.layers.batch_norm(conv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-            output = tf.nn.leaky_relu(conv)
+            output = tf.nn.relu(conv)
             current_input = output
         encoder.reverse()
         shapes_enc.reverse()
@@ -129,7 +129,7 @@ def autoencoder(x):
         theta_G.append(W_fc1)
         z = tf.matmul(tf.layers.flatten(current_input), W_fc1)
         z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-        z = tf.nn.relu(z)
+        z = tf.nn.tanh(z)
         z_value = z
         W_fc2 = tf.Variable(tf.random_normal([100, 4*4*512]))
         theta_G.append(W_fc2)
@@ -147,7 +147,10 @@ def autoencoder(x):
                                      tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                                      strides=[1, 2, 2, 1], padding='SAME')
             deconv = tf.contrib.layers.batch_norm(deconv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-            output = tf.nn.relu(deconv)
+            if layer_i == 2:
+                output = tf.nn.sigmoid(deconv)
+            else:
+                output = tf.nn.relu(deconv)
             current_input = output
         g = current_input
         g_logits = deconv
@@ -162,14 +165,14 @@ def autoencoder(x):
             W_dec = decoder[layer_i]
             conv = tf.nn.conv2d(current_input, W_dec, strides=[1, 2, 2, 1], padding='SAME')          
             conv = tf.contrib.layers.batch_norm(conv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-            output = tf.nn.leaky_relu(conv)
+            output = tf.nn.relu(conv)
             current_input = output
         encoder.reverse()
         shapes_enc.reverse()
 
         z = tf.matmul(tf.layers.flatten(current_input), tf.transpose(W_fc2))
         z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-        z = tf.nn.relu(z)
+        z = tf.nn.tanh(z)
         z_value = z
         z_ = tf.matmul(z, tf.transpose(W_fc1))
         z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
@@ -181,7 +184,10 @@ def autoencoder(x):
                                      tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                                      strides=[1, 2, 2, 1], padding='SAME')
             deconv = tf.contrib.layers.batch_norm(deconv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-            output = tf.nn.relu(deconv)
+            if layer_i == 2:
+                output = tf.nn.sigmoid(deconv)
+            else:
+                output = tf.nn.relu(deconv)
             current_input = output
         a = current_input
         a_logits = deconv        
@@ -244,7 +250,8 @@ def discriminator(x):
      
         d = tf.nn.xw_plus_b(h7, W7, b7)
         z_value = tf.matmul(h7,W_z)
-        z_value = tf.nn.relu(z_value)
+        z_value = tf.contrib.layers.batch_norm(z_value,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z_value = tf.nn.tanh(z_value)
     return d, z_value
 
 G_logits,G_sample,A_logits,A_sample, gen_real_z = autoencoder(X)
@@ -258,7 +265,7 @@ A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
 G_z_loss = tf.reduce_mean(tf.pow(disc_real_z - gen_real_z, 2))
 D_z_loss =tf.reduce_mean(tf.pow(disc_fake_z - gen_real_z, 2))
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits) + D_z_loss
-G_loss = -tf.reduce_mean(D_fake_logits)- D_z_loss + A_loss  + G_z_loss
+G_loss = -tf.reduce_mean(D_fake_logits)- D_z_loss + A_loss 
 
 
 # Gradient Penalty
@@ -277,7 +284,6 @@ tf.summary.image('A_sample',A_sample)
 tf.summary.scalar('D_loss', D_loss)
 tf.summary.scalar('G_loss',G_loss)
 tf.summary.scalar('A_loss',A_loss)
-tf.summary.scalar('G_z_loss',G_z_loss)
 tf.summary.scalar('D_z_loss',D_z_loss)
 merged = tf.summary.merge_all()
 
