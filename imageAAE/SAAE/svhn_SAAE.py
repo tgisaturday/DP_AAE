@@ -126,15 +126,17 @@ def autoencoder(x):
         encoder.reverse()
         shapes_enc.reverse()
         W_fc1 = tf.Variable(tf.random_normal([4*4*512, 100]))
+        b=tf.Variable(tf.zeros([100]))
         theta_G.append(W_fc1)
-        z = tf.matmul(tf.layers.flatten(current_input), W_fc1)
-        z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        theta_G.append(b)
+        z = tf.nn.xw_plus_b(tf.layers.flatten(current_input),W_fc1,b)
         z = tf.nn.tanh(z)
         z_value = z
         W_fc2 = tf.Variable(tf.random_normal([100, 4*4*512]))
+        b=tf.Variable(tf.zeros([4*4*512]))
         theta_G.append(W_fc2)
-        z_ = tf.matmul(z, W_fc2)
-        z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        theta_G.append(b)
+        z_ = tf.nn.xw_plus_b(z,W_fc2,b)
         z_ = tf.nn.relu(z_)
         current_input = tf.reshape(z_, [-1, 4, 4, 512])
         for layer_i, shape in enumerate(shapes_enc):
@@ -169,13 +171,14 @@ def autoencoder(x):
             current_input = output
         encoder.reverse()
         shapes_enc.reverse()
-
-        z = tf.matmul(tf.layers.flatten(current_input), tf.transpose(W_fc2))
-        z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        b=tf.Variable(tf.zeros([100]))
+        theta_G.append(b)
+        z = tf.nn.xw_plus_b(tf.layers.flatten(current_input), tf.transpose(W_fc2),b)
         z = tf.nn.tanh(z)
         z_value = z
-        z_ = tf.matmul(z, tf.transpose(W_fc1))
-        z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        b=tf.Variable(tf.zeros([4*4*512]))
+        theta_G.append(b)
+        z_ = tf.nn.xw_plus_b(z, tf.transpose(W_fc1),b)
         z_ = tf.nn.relu(z_)
         current_input = tf.reshape(z_, [-1, 4, 4, 512])
         for layer_i, shape in enumerate(shapes_enc):
