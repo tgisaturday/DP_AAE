@@ -198,8 +198,9 @@ W7 = tf.Variable(xavier_init([3,3,256,512]))
 W8 = tf.Variable(xavier_init([3,3,512,512]))
 W9 = tf.Variable(xavier_init([8192, 1]))
 b9 = tf.Variable(tf.zeros(shape=[1]))
-W_z = tf.Variable(xavier_init([8192, 200]))     
-theta_D = [W1,W2,W3,W4,W5,W6,W7,W8,W9,b9,W_z]
+W_z = tf.Variable(xavier_init([8192, 200]))  
+b_z=tf.Variable(tf.zeros([200]))
+theta_D = [W1,W2,W3,W4,W5,W6,W7,W8,W9,b9,W_z,b_z]
 
 def discriminator(x):
     if len(x.get_shape()) == 3:
@@ -254,8 +255,7 @@ def discriminator(x):
         h10 = tf.layers.flatten(h9)
         
         d = tf.nn.xw_plus_b(h10, W9, b9)
-        z_value = tf.matmul(h10,W_z)
-        z_value = tf.contrib.layers.batch_norm(z_value,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z_value = tf.nn.xw_plus_b(h7,W_z,b_z)
         z_value = tf.nn.tanh(z_value)
     return d, z_value
 
