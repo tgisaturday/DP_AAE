@@ -126,17 +126,15 @@ def autoencoder(x):
         encoder.reverse()
         shapes_enc.reverse()
         W_fc1 = tf.Variable(tf.random_normal([4*4*512, 100]))
-        b=tf.Variable(tf.zeros([100]))
         theta_G.append(W_fc1)
-        theta_G.append(b)
-        z = tf.nn.xw_plus_b(tf.layers.flatten(current_input),W_fc1,b)
+        z = tf.matmul(tf.layers.flatten(current_input),W_fc1)
+        z =  tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z = tf.nn.tanh(z)
         z_value = z
         W_fc2 = tf.Variable(tf.random_normal([100, 4*4*512]))
-        b=tf.Variable(tf.zeros([4*4*512]))
         theta_G.append(W_fc2)
-        theta_G.append(b)
-        z_ = tf.nn.xw_plus_b(z,W_fc2,b)
+        z_ = tf.matmul(z,W_fc2)
+        z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z_ = tf.nn.relu(z_)
         current_input = tf.reshape(z_, [-1, 4, 4, 512])
         for layer_i, shape in enumerate(shapes_enc):
@@ -171,14 +169,12 @@ def autoencoder(x):
             current_input = output
         encoder.reverse()
         shapes_enc.reverse()
-        b=tf.Variable(tf.zeros([100]))
-        theta_G.append(b)
-        z = tf.nn.xw_plus_b(tf.layers.flatten(current_input), tf.transpose(W_fc2),b)
+        z = tf.matmul(tf.layers.flatten(current_input), tf.transpose(W_fc2))
+        z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z = tf.nn.tanh(z)
         z_value = z
-        b=tf.Variable(tf.zeros([4*4*512]))
-        theta_G.append(b)
-        z_ = tf.nn.xw_plus_b(z, tf.transpose(W_fc1),b)
+        z_ = tf.matmul(z, tf.transpose(W_fc1))
+        z_ =  tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z_ = tf.nn.relu(z_)
         current_input = tf.reshape(z_, [-1, 4, 4, 512])
         for layer_i, shape in enumerate(shapes_enc):
@@ -207,9 +203,10 @@ W5 = tf.Variable(xavier_init([3,3,128,256]))
 W6 = tf.Variable(xavier_init([3,3,256,256]))
 W7 = tf.Variable(xavier_init([4096, 1]))
 b7 = tf.Variable(tf.zeros(shape=[1]))
+W_fc = tf.Variable(xavier_init([4096,4096]))
 W_z = tf.Variable(xavier_init([4096, 100]))
 b_z=tf.Variable(tf.zeros([100]))
-theta_D = [W1,W2,W3,W4,W5,W6,W7,b7,W_z, b_z]
+theta_D = [W1,W2,W3,W4,W5,W6,W7,b7,W_fc,W_z, b_z]
 
 
 def discriminator(x):
@@ -254,7 +251,11 @@ def discriminator(x):
         h7 = tf.layers.flatten(h6)
      
         d = tf.nn.xw_plus_b(h7, W7, b7)
-        z_value = tf.nn.xw_plus_b(h7,W_z,b_z)
+        
+        z_value = tf.matmul(h7,W_fc)
+        z_value = tf.contrib.layers.batch_norm(z_value,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z_value = tf.nn.leaky_relu(z_value)
+        z_value = tf.nn.xw_plus_b(z_value,W_z,b_z)
         z_value = tf.nn.tanh(z_value)
     return d, z_value
 
