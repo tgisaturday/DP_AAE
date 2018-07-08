@@ -317,7 +317,6 @@ with tf.Session() as sess:
     for it in range(1000000000):
         X_mb = next_batch(mb_size, x_train)
         _, D_loss_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb})
-        X_mb = next_batch(mb_size, x_train)        
         summary,_, G_loss_curr,A_loss_curr = sess.run([merged,G_solver, G_loss, A_loss],feed_dict={X: X_mb})
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
