@@ -117,15 +117,15 @@ def autoencoder(x):
             current_input = output
         encoder.reverse()
         shapes_enc.reverse()
-        W_fc1 = tf.Variable(tf.random_normal([4*4*1024, 200]))
+        W_fc1 = tf.Variable(tf.random_normal([4*4*1024, 100]))
         theta_G.append(W_fc1)
-        z = tf.matmul(tf.layers.flatten(current_input), W_fc1)
-        z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z = tf.matmul(tf.layers.flatten(current_input),W_fc1)
+        z =  tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z = tf.nn.tanh(z)
         z_value = z
-        W_fc2 = tf.Variable(tf.random_normal([200, 4*4*1024]))
+        W_fc2 = tf.Variable(tf.random_normal([100, 4*4*1024]))
         theta_G.append(W_fc2)
-        z_ = tf.matmul(z, W_fc2)
+        z_ = tf.matmul(z,W_fc2)
         z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z_ = tf.nn.relu(z_)
         current_input = tf.reshape(z_, [-1, 4, 4, 1024])
@@ -161,13 +161,12 @@ def autoencoder(x):
             current_input = output
         encoder.reverse()
         shapes_enc.reverse()
-
         z = tf.matmul(tf.layers.flatten(current_input), tf.transpose(W_fc2))
         z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z = tf.nn.tanh(z)
         z_value = z
         z_ = tf.matmul(z, tf.transpose(W_fc1))
-        z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z_ =  tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z_ = tf.nn.relu(z_)
         current_input = tf.reshape(z_, [-1, 4, 4,1024])
         for layer_i, shape in enumerate(shapes_enc):
@@ -195,8 +194,10 @@ W7 = tf.Variable(xavier_init([3,3,256,512]))
 W8 = tf.Variable(xavier_init([3,3,512,512]))
 W9 = tf.Variable(xavier_init([8192, 1]))
 b9 = tf.Variable(tf.zeros(shape=[1]))
-   
-theta_D = [W1,W2,W3,W4,W5,W6,W7,W8,W9,b9]
+W_fc = tf.Variable(xavier_init([8192,8192]))
+W_z = tf.Variable(xavier_init([8192, 100]))  
+b_z=tf.Variable(tf.zeros([100]))
+theta_D = [W1,W2,W3,W4,W5,W6,W7,W8,W9,b9,W_fc,W_z,b_z]
 
 def discriminator(x):
     if len(x.get_shape()) == 3:
@@ -251,67 +252,27 @@ def discriminator(x):
         h10 = tf.layers.flatten(h9)
         
         d = tf.nn.xw_plus_b(h10, W9, b9)
+        z_value = tf.matmul(h10,W_fc)
+        z_value = tf.contrib.layers.batch_norm(z_value,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z_value = tf.nn.leaky_relu(z_value)
+        z_value = tf.nn.xw_plus_b(z_value,W_z,b_z)
+        z_value = tf.nn.tanh(z_value)
+    return d, z_value
 
-    return d
-
-
-W1_1 = tf.Variable(xavier_init([5,5,3,128]))
-W2_1 = tf.Variable(xavier_init([5,5,128,256]))
-W3_1 = tf.Variable(xavier_init([5,5,256,512]))
-W4_1 = tf.Variable(xavier_init([5,5,512,1024]))
-W_z_1 = tf.Variable(xavier_init([4*4*1024, 200]))
-theta_H = [W1_1,W2_1,W3_1,W4_1,W_z_1]
-def hacker(x):
-    if len(x.get_shape()) == 2:
-        x_dim = np.sqrt(x.get_shape().as_list()[1])
-        if x_dim != int(x_dim):
-            raise ValueError('Unsupported input dimensions')
-        x_dim = int(x_dim)
-        x_tensor = tf.reshape(x, [-1, 64, 64, 3])
-    elif len(x.get_shape()) == 4:
-        x_tensor = x
-    else:
-        raise ValueError('Unsupported input dimensions')   
-    with tf.name_scope("Discriminator"):
-        conv1 = tf.nn.conv2d(x_tensor, W1_1, strides=[1,2,2,1],padding='SAME')
-        conv1 = tf.contrib.layers.batch_norm(conv1,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-        h1 = tf.nn.leaky_relu(conv1)
-
-        conv2 = tf.nn.conv2d(h1, W2_1, strides=[1,2,2,1],padding='SAME')
-        conv2 = tf.contrib.layers.batch_norm(conv2,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-        h2 = tf.nn.leaky_relu(conv2)
-        
-        conv3 = tf.nn.conv2d(h2, W3_1, strides=[1,2,2,1],padding='SAME')
-        conv3 = tf.contrib.layers.batch_norm(conv3,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-        h3 = tf.nn.leaky_relu(conv3)
-
-        conv4 = tf.nn.conv2d(h3, W4_1, strides=[1,2,2,1],padding='SAME')
-        conv4 = tf.contrib.layers.batch_norm(conv4,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-        h4 = tf.nn.leaky_relu(conv4)
-        
-        h5 = tf.layers.flatten(h4)
-     
-        z = tf.matmul(h5, W_z_1)
-        z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-        z = tf.nn.tanh(z)
-        
-    return z    
 
 G_logits,G_sample,A_logits,A_sample, gen_real_z = autoencoder(X)
 
-D_real_logits = discriminator(X)
-D_fake_logits = discriminator(G_sample)
-disc_real_z = hacker(X)
-disc_fake_z = hacker(G_sample)
+D_real_logits, disc_real_z = discriminator(X)
+D_fake_logits, disc_fake_z = discriminator(G_sample)
+A_fake_logits, _ = discriminator(A_sample)
 A_true_flat = tf.reshape(X, [-1,64,64,3])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
 A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
-G_z_loss = tf.reduce_mean(tf.pow(disc_real_z - gen_real_z, 2))
 D_z_loss =tf.reduce_mean(tf.pow(disc_fake_z - gen_real_z, 2))
-D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
-G_loss = -tf.reduce_mean(D_fake_logits)- D_z_loss + A_loss
-H_loss = D_z_loss
+D_loss = tf.reduce_mean(D_fake_logits) + tf.reduce_mean(A_fake_logits)-tf.reduce_mean(D_real_logits) + D_z_loss
+G_loss = -tf.reduce_mean(D_fake_logits)- tf.reduce_mean(A_fake_logits)- D_z_loss + A_loss
+
 
 # Gradient Penalty
 epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
@@ -335,15 +296,15 @@ merged = tf.summary.merge_all()
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
 D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
 G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
-H_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
+
 
 D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
 G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_G)
-H_grads_and_vars=H_optimizer.compute_gradients(H_loss, var_list=theta_H)
+
 
 D_solver = D_optimizer.apply_gradients(D_grads_and_vars, global_step=global_step)
 G_solver = G_optimizer.apply_gradients(G_grads_and_vars, global_step=global_step)
-H_solver = H_optimizer.apply_gradients(H_grads_and_vars, global_step=global_step)
+
 
 clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
 
@@ -370,15 +331,12 @@ with tf.Session() as sess:
         X_mb = next_batch(mb_size, x_train)
         _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
         X_mb = next_batch(mb_size, x_train)
-        _, H_loss_curr = sess.run([H_solver, H_loss],feed_dict={X: X_mb})        
-        X_mb = next_batch(mb_size, x_train)
         summary,_, G_loss_curr,A_loss_curr = sess.run([merged,G_solver, G_loss, A_loss],feed_dict={X: X_mb})
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
         
         if it % 100 == 0:
-            print('Iter: {}; D_loss: {:.4}; G_loss: {:.4};  A_loss: {:.4}; H_loss: {:.4};'.format(it,D_loss_curr, G_loss_curr, A_loss_curr, H_loss_curr))
-
+            print('Iter: {}; D_loss: {:.4}; G_loss: {:.4};  A_loss: {:.4};'.format(it,D_loss_curr, G_loss_curr, A_loss_curr))
 
         if it % 1000 == 0: 
             samples = sess.run(G_sample, feed_dict={X: X_mb})
