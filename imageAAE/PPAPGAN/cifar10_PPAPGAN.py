@@ -269,8 +269,8 @@ A_true_flat = tf.reshape(X, [-1,32,32,3])
 global_step = tf.Variable(0, name="global_step", trainable=False)
 A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
 D_z_loss =tf.reduce_mean(tf.pow(disc_fake_z - gen_real_z, 2))
-D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits) + 100.0*D_z_loss
-G_loss = -tf.reduce_mean(D_fake_logits)- 100.0*D_z_loss + 100.0*A_loss
+D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits) + 10.0*D_z_loss
+G_loss = -tf.reduce_mean(D_fake_logits)- 10.0*D_z_loss + 10.0*A_loss
 
 
 # Gradient Penalty
@@ -306,8 +306,6 @@ D_solver = D_optimizer.apply_gradients(D_grads_and_vars, global_step=global_step
 G_solver = G_optimizer.apply_gradients(G_grads_and_vars, global_step=global_step)
 
 
-clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
-
 timestamp = str(int(time.time()))
 out_dir = os.path.abspath(os.path.join(os.path.curdir, "models/cifar10_" + timestamp))
 checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
@@ -328,7 +326,7 @@ with tf.Session() as sess:
     
     for it in range(1000000000):
         X_mb, Y_mb = next_batch(mb_size, x_train, y_train_one_hot.eval())
-        _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
+        _, D_loss_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb})
         X_mb, Y_mb = next_batch(mb_size, x_train, y_train_one_hot.eval())
         summary,_, G_loss_curr,A_loss_curr = sess.run([merged,G_solver, G_loss, A_loss],feed_dict={X: X_mb})
         current_step = tf.train.global_step(sess, global_step)
