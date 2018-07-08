@@ -262,14 +262,14 @@ G_logits,G_sample,A_logits,A_sample, gen_real_z = autoencoder(X)
 
 D_real_logits, disc_real_z = discriminator(X)
 D_fake_logits, disc_fake_z = discriminator(G_sample)
-A_fake_logits, _ = discriminator(A_sample)
+#A_fake_logits, _ = discriminator(A_sample)
 A_true_flat = tf.reshape(X, [-1,32,32,3])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
 A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
 D_z_loss =tf.reduce_mean(tf.pow(disc_fake_z - gen_real_z, 2))
-D_loss = tf.reduce_mean(D_fake_logits) + tf.reduce_mean(A_fake_logits)-tf.reduce_mean(D_real_logits) + D_z_loss
-G_loss = -tf.reduce_mean(D_fake_logits)- tf.reduce_mean(A_fake_logits)- D_z_loss + A_loss
+D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits) + 100.0*D_z_loss
+G_loss = -tf.reduce_mean(D_fake_logits)- 100.0*D_z_loss + 100.0*A_loss
 
 
 # Gradient Penalty
