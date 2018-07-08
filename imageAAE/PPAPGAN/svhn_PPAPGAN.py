@@ -271,17 +271,6 @@ D_z_loss =tf.reduce_mean(tf.pow(disc_fake_z - gen_real_z, 2))
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits) + 10.0*D_z_loss
 G_loss = -tf.reduce_mean(D_fake_logits)- 10.0*D_z_loss + 10.0*A_loss
 
-
-# Gradient Penalty
-epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
-X_hat = A_true_flat + epsilon * (G_sample - A_true_flat)
-D_X_hat = discriminator(X_hat)
-grad_D_X_hat = tf.gradients(D_X_hat, [X_hat])[0]
-red_idx = list(range(1, X_hat.shape.ndims))
-slopes = tf.sqrt(tf.reduce_sum(tf.square(grad_D_X_hat), reduction_indices=red_idx))
-gradient_penalty = tf.reduce_mean((slopes - 1.) ** 2)
-D_loss = D_loss + 10.0 * gradient_penalty
-
 tf.summary.image('Original',A_true_flat)
 tf.summary.image('G_sample',G_sample)
 tf.summary.image('A_sample',A_sample)
@@ -304,7 +293,7 @@ D_solver = D_optimizer.apply_gradients(D_grads_and_vars, global_step=global_step
 G_solver = G_optimizer.apply_gradients(G_grads_and_vars, global_step=global_step)
 
 
-#clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
+clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
 
 
 timestamp = str(int(time.time()))
@@ -327,7 +316,7 @@ with tf.Session() as sess:
     
     for it in range(1000000000):
         X_mb = next_batch(mb_size, x_train)
-        _, D_loss_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb})
+        _, D_loss_curr, _ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
         X_mb = next_batch(mb_size, x_train)        
         summary,_, G_loss_curr,A_loss_curr = sess.run([merged,G_solver, G_loss, A_loss],feed_dict={X: X_mb})
         current_step = tf.train.global_step(sess, global_step)
