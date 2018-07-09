@@ -275,7 +275,7 @@ with tf.Session() as sess:
     for it in range(1000000000):
         for _ in range(5):
             X_mb, Y_mb = mnist.train.next_batch(mb_size)
-            _, D_loss_curr = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
+            _, D_loss_curr,_ = sess.run([D_solver, D_loss, clip_D],feed_dict={X: X_mb})
         summary,_, G_loss_curr,A_loss_curr = sess.run([merged,G_solver, G_loss, A_loss],feed_dict={X: X_mb})
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
