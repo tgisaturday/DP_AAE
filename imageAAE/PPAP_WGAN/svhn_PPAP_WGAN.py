@@ -172,7 +172,7 @@ def autoencoder(x):
         z = tf.matmul(tf.layers.flatten(current_input), tf.transpose(W_fc2))
         z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z = tf.nn.tanh(z)
-        z_value = z
+        z_transpose = z
         z_ = tf.matmul(z, tf.transpose(W_fc1))
         z_ =  tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z_ = tf.nn.relu(z_)
@@ -191,7 +191,7 @@ def autoencoder(x):
         a = current_input
         a_logits = deconv        
 
-    return g_logits, g, a_logits, a, z_value
+    return g_logits, g, a_logits, a, z_value, z_transpose
 
 W1 = tf.Variable(xavier_init([5,5,3,64]))
 W2 = tf.Variable(xavier_init([5,5,64,128]))
@@ -269,34 +269,50 @@ def hacker(x):
         z_value = tf.nn.tanh(z_value)
     return z_value
 
-G_logits,G_sample,A_logits,A_sample, gen_real_z = autoencoder(X)
+G_logits,G_sample,A_logits,A_sample, gen_real_z, gen_trans_z = autoencoder(X)
 D_real_logits = discriminator(X)
 D_fake_logits = discriminator(G_sample)
+A_fake_logits = discriminator(A_sample)
 disc_fake_z = hacker(G_sample)
 A_true_flat = tf.reshape(X, [-1,32,32,3])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
 A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
+G_z_loss = tf.reduce_mean(tf.pow(gen_trans_z - gen_real_z, 2))
 D_z_loss =tf.reduce_mean(tf.pow(disc_fake_z - gen_real_z, 2))
-D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
-G_loss = -tf.reduce_mean(D_fake_logits)- 10.0*D_z_loss + 10.0*A_loss
-H_loss =D_z_loss
-# Gradient Penalty
-epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
-X_hat = A_true_flat + epsilon * (G_sample - A_true_flat)
-D_X_hat = discriminator(X_hat)
-grad_D_X_hat = tf.gradients(D_X_hat, [X_hat])[0]
-red_idx = list(range(1, X_hat.shape.ndims))
-slopes = tf.sqrt(tf.reduce_sum(tf.square(grad_D_X_hat), reduction_indices=red_idx))
-gradient_penalty = tf.reduce_mean(tf.square(slopes - 1.))
-D_loss = D_loss + 10.0 * gradient_penalty
+G_loss = -(0.5*tf.reduce_mean(D_fake_logits) + 0.5*tf.reduce_mean(D_fake_logits)) - 10.0*D_z_loss + 10.0*G_z_loss + 10.0*A_loss
+H_loss = 10.0*D_z_loss
 
+D_G_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
+# Gradient Penalty
+epsilon_G = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
+X_G_hat = A_true_flat + epsilon_G * (G_sample - A_true_flat)
+D_G_X_hat = discriminator(X_G_hat)
+grad_D_G_X_hat = tf.gradients(D_G_X_hat, [X_G_hat])[0]
+red_G_idx = list(range(1, X_G_hat.shape.ndims))
+slopes_G = tf.sqrt(tf.reduce_sum(tf.square(grad_D_G_X_hat), reduction_indices=red_G_idx))
+gradient_penalty_G = tf.reduce_mean(tf.square(slopes_G - 1.))
+D_G_loss = D_G_loss + 10.0 * gradient_penalty_G
+
+D_A_loss = tf.reduce_mean(A_fake_logits)-tf.reduce_mean(D_real_logits)
+# Gradient Penalty
+epsilon_A = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
+X_A_hat = A_true_flat + epsilon_A * (A_sample - A_true_flat)
+D_A_X_hat = discriminator(X_A_hat)
+grad_D_A_X_hat = tf.gradients(D_A_X_hat, [X_A_hat])[0]
+red_A_idx = list(range(1, X_A_hat.shape.ndims))
+slopes_A = tf.sqrt(tf.reduce_sum(tf.square(grad_D_A_X_hat), reduction_indices=red_A_idx))
+gradient_penalty_A = tf.reduce_mean(tf.square(slopes_A - 1.))
+D_A_loss = D_A_loss + 10.0 * gradient_penalty_A
+
+D_loss = 0.5*D_G_loss + 0.5*D_A_loss
 tf.summary.image('Original',A_true_flat)
 tf.summary.image('G_sample',G_sample)
 tf.summary.image('A_sample',A_sample)
 tf.summary.scalar('D_loss', D_loss)
 tf.summary.scalar('G_loss',-tf.reduce_mean(D_fake_logits))
 tf.summary.scalar('A_loss',A_loss)
+tf.summary.scalar('G_z_loss',G_z_loss)
 tf.summary.scalar('D_z_loss',D_z_loss)
 merged = tf.summary.merge_all()
 
