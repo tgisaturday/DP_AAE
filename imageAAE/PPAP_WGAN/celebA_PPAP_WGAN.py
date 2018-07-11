@@ -282,7 +282,8 @@ global_step = tf.Variable(0, name="global_step", trainable=False)
 A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
 G_z_loss = tf.reduce_mean(tf.pow(gen_trans_z - gen_real_z, 2))
 D_z_loss =tf.reduce_mean(tf.pow(disc_fake_z - gen_real_z, 2))
-G_loss = -(0.5*tf.reduce_mean(D_fake_logits) + 0.5*tf.reduce_mean(D_fake_logits)) - 10.0*D_z_loss + 10.0*G_z_loss + 10.0*A_loss
+G_loss = -tf.reduce_mean(D_fake_logits) - 10.0*D_z_loss + 10.0*G_z_loss + 10.0*A_loss
+#G_loss = -(0.5*tf.reduce_mean(D_fake_logits) + 0.5*tf.reduce_mean(A_fake_logits)) - 10.0*D_z_loss + 10.0*G_z_loss + 10.0*A_loss
 H_loss = 10.0*D_z_loss
 
 D_G_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
@@ -296,18 +297,19 @@ slopes_G = tf.sqrt(tf.reduce_sum(tf.square(grad_D_G_X_hat), reduction_indices=re
 gradient_penalty_G = tf.reduce_mean(tf.square(slopes_G - 1.))
 D_G_loss = D_G_loss + 10.0 * gradient_penalty_G
 
-D_A_loss = tf.reduce_mean(A_fake_logits)-tf.reduce_mean(D_real_logits)
+#D_A_loss = tf.reduce_mean(A_fake_logits)-tf.reduce_mean(D_real_logits)
 # Gradient Penalty
-epsilon_A = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
-X_A_hat = A_true_flat + epsilon_A * (A_sample - A_true_flat)
-D_A_X_hat = discriminator(X_A_hat)
-grad_D_A_X_hat = tf.gradients(D_A_X_hat, [X_A_hat])[0]
-red_A_idx = list(range(1, X_A_hat.shape.ndims))
-slopes_A = tf.sqrt(tf.reduce_sum(tf.square(grad_D_A_X_hat), reduction_indices=red_A_idx))
-gradient_penalty_A = tf.reduce_mean(tf.square(slopes_A - 1.))
-D_A_loss = D_A_loss + 10.0 * gradient_penalty_A
+#epsilon_A = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
+#X_A_hat = A_true_flat + epsilon_A * (A_sample - A_true_flat)
+#D_A_X_hat = discriminator(X_A_hat)
+#grad_D_A_X_hat = tf.gradients(D_A_X_hat, [X_A_hat])[0]
+#red_A_idx = list(range(1, X_A_hat.shape.ndims))
+#slopes_A = tf.sqrt(tf.reduce_sum(tf.square(grad_D_A_X_hat), reduction_indices=red_A_idx))
+#gradient_penalty_A = tf.reduce_mean(tf.square(slopes_A - 1.))
+#D_A_loss = D_A_loss + 10.0 * gradient_penalty_A
 
-D_loss = 0.5*D_G_loss + 0.5*D_A_loss
+#D_loss = 0.5*D_G_loss + 0.5*D_A_loss
+D_loss = D_G_loss
 tf.summary.image('Original',A_true_flat)
 tf.summary.image('G_sample',G_sample)
 tf.summary.image('A_sample',A_sample)
