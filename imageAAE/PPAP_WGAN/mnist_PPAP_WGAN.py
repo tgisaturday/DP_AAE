@@ -82,7 +82,18 @@ def autoencoder(x):
             current_input = output
         encoder.reverse()
         shapes_enc.reverse()
-        z_value = current_input
+        W_fc1 = tf.Variable(tf.random_normal([4*4*512, 100]))
+        theta_G.append(W_fc1)
+        z = tf.matmul(tf.layers.flatten(current_input),W_fc1)
+        z =  tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z = tf.nn.tanh(z)
+        z_value = z
+        W_fc2 = tf.Variable(tf.random_normal([100, 4*4*512]))
+        theta_G.append(W_fc2)
+        z_ = tf.matmul(z,W_fc2)
+        z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z_ = tf.nn.relu(z_)
+        current_input = tf.reshape(z_, [-1, 4, 4, 512])
         for layer_i, shape in enumerate(shapes_enc):
             W_enc = encoder[layer_i]
             W = tf.Variable(xavier_init(W_enc.get_shape().as_list()))
@@ -115,6 +126,14 @@ def autoencoder(x):
             current_input = output
         encoder.reverse()
         shapes_enc.reverse()
+        z = tf.matmul(tf.layers.flatten(current_input), tf.transpose(W_fc2))
+        z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z = tf.nn.tanh(z)
+        z_value = z
+        z_ = tf.matmul(z, tf.transpose(W_fc1))
+        z_ =  tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        z_ = tf.nn.relu(z_)
+        current_input = tf.reshape(z_, [-1, 4, 4,512])        
         for layer_i, shape in enumerate(shapes_enc):
             W_enc = encoder[layer_i]
             deconv = tf.nn.conv2d_transpose(current_input, W_enc,
@@ -175,8 +194,8 @@ def discriminator(x):
 W1_H = tf.Variable(xavier_init([5,5,1,128]))
 W2_H = tf.Variable(xavier_init([5,5,128,256]))
 W3_H = tf.Variable(xavier_init([5,5,256,512]))
-
-theta_H = [W1_H,W2_H,W3_H]
+W_fc = tf.Variable(xavier_init([4*4*512, 100]))
+theta_H = [W1_H,W2_H,W3_H,W_fc]
 
 
 def hacker(x):
@@ -200,9 +219,11 @@ def hacker(x):
         h2 = tf.nn.leaky_relu(conv2)
 
         conv3 = tf.nn.conv2d(h2, W3_H, strides=[1,2,2,1],padding='SAME')
+        conv3 = tf.contrib.layers.batch_norm(conv3,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         h3 = tf.nn.leaky_relu(conv3)
         
-        z_value = h3
+        z_value = tf.matmul(tf.layers.flatten(h3),W_fc)
+        z_value = tf.nn.tanh(z_value)
     return z_value
 
 G_logits,G_sample,A_logits,A_sample, gen_real_z = autoencoder(X)
@@ -216,7 +237,7 @@ A_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
 D_z_loss =tf.reduce_mean(tf.pow(disc_fake_z - gen_real_z, 2))
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
 G_loss = -tf.reduce_mean(D_fake_logits)- 10.0*D_z_loss + 10.0*A_loss
-H_loss =D_z_loss
+H_loss = 10.0*D_z_loss
 # Gradient Penalty
 epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
 X_hat = A_true_flat + epsilon * (G_sample - A_true_flat)
