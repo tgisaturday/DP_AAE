@@ -92,10 +92,10 @@ def autoencoder(x):
             deconv = tf.nn.conv2d_transpose(current_input, W,
                                      tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                                      strides=[1, 2, 2, 1], padding='SAME')
-            deconv = tf.contrib.layers.batch_norm(deconv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
             if layer_i == 2:
                 output = tf.nn.sigmoid(deconv)
             else:
+                deconv = tf.contrib.layers.batch_norm(deconv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
                 output = tf.nn.relu(deconv)
             current_input = output
         g = current_input
@@ -120,10 +120,10 @@ def autoencoder(x):
             deconv = tf.nn.conv2d_transpose(current_input, W_enc,
                                      tf.stack([tf.shape(x)[0], shape[1], shape[2], shape[3]]),
                                      strides=[1, 2, 2, 1], padding='SAME')
-            deconv = tf.contrib.layers.batch_norm(deconv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
             if layer_i == 2:
                 output = tf.nn.sigmoid(deconv)
             else:
+                deconv = tf.contrib.layers.batch_norm(deconv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
                 output = tf.nn.relu(deconv)
             current_input = output
         a = current_input
@@ -131,11 +131,11 @@ def autoencoder(x):
 
     return g_logits, g, a_logits, a, z_value
 
-W1 = tf.Variable(xavier_init([5,5,1,128]))
-W2 = tf.Variable(xavier_init([5,5,128,256]))
-W3 = tf.Variable(xavier_init([5,5,256,512]))
+W1 = tf.Variable(xavier_init([5,5,1,64]))
+W2 = tf.Variable(xavier_init([5,5,64,128]))
+W3 = tf.Variable(xavier_init([5,5,128,256]))
 
-W4 = tf.Variable(xavier_init([8192, 1]))
+W4 = tf.Variable(xavier_init([4*4*256, 1]))
 b4 = tf.Variable(tf.zeros(shape=[1]))
 
 theta_D = [W1,W2,W3,W4,b4]
@@ -170,24 +170,53 @@ def discriminator(x):
      
         d = tf.nn.xw_plus_b(h4, W4, b4)
         
+    return d
+
+W1_H = tf.Variable(xavier_init([5,5,1,128]))
+W2_H = tf.Variable(xavier_init([5,5,128,256]))
+W3_H = tf.Variable(xavier_init([5,5,256,512]))
+
+theta_H = [W1_H,W2_H,W3_H]
+
+
+def hacker(x):
+    if len(x.get_shape()) == 2:
+        x_dim = np.sqrt(x.get_shape().as_list()[1])
+        if x_dim != int(x_dim):
+            raise ValueError('Unsupported input dimensions')
+        x_dim = int(x_dim)
+        x_tensor = tf.reshape(x, [-1, 28, 28, 1])
+    elif len(x.get_shape()) == 4:
+        x_tensor = x
+    else:
+        raise ValueError('Unsupported input dimensions')   
+    with tf.name_scope("Hacker"):
+        conv1 = tf.nn.conv2d(x_tensor, W1_H, strides=[1,2,2,1],padding='SAME')
+        conv1 = tf.contrib.layers.batch_norm(conv1,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        h1 = tf.nn.leaky_relu(conv1)
+    
+        conv2 = tf.nn.conv2d(h1, W2_H, strides=[1,2,2,1],padding='SAME')
+        conv2 = tf.contrib.layers.batch_norm(conv2,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
+        h2 = tf.nn.leaky_relu(conv2)
+
+        conv3 = tf.nn.conv2d(h2, W3_H, strides=[1,2,2,1],padding='SAME')
+        h3 = tf.nn.leaky_relu(conv3)
+        
         z_value = h3
-    return d, z_value
+    return z_value
 
 G_logits,G_sample,A_logits,A_sample, gen_real_z = autoencoder(X)
-
-D_real_logits, disc_real_z = discriminator(X)
-D_fake_logits, disc_fake_z = discriminator(G_sample)
+D_real_logits = discriminator(X)
+D_fake_logits = discriminator(G_sample)
+disc_fake_z = hacker(G_sample)
 A_true_flat = tf.reshape(X, [-1,28,28,1])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
-#A_encoded_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
-A_decoded_loss =tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
-A_loss = A_decoded_loss
-#G_z_loss = tf.reduce_mean(tf.pow(disc_real_z - gen_real_z, 2))
+A_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
 D_z_loss =tf.reduce_mean(tf.pow(disc_fake_z - gen_real_z, 2))
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
-G_loss = -tf.reduce_mean(D_fake_logits)- D_z_loss + A_loss
-
+G_loss = -tf.reduce_mean(D_fake_logits)- D_z_loss + 10.0*A_loss
+H_loss =D_z_loss
 # Gradient Penalty
 epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
 X_hat = A_true_flat + epsilon * (G_sample - A_true_flat)
@@ -195,30 +224,24 @@ D_X_hat = discriminator(X_hat)
 grad_D_X_hat = tf.gradients(D_X_hat, [X_hat])[0]
 red_idx = list(range(1, X_hat.shape.ndims))
 slopes = tf.sqrt(tf.reduce_sum(tf.square(grad_D_X_hat), reduction_indices=red_idx))
-gradient_penalty = tf.reduce_mean((slopes - 1.) ** 2)
-D_loss = D_loss + 10.0 * gradient_penalty + D_z_loss
+gradient_penalty = tf.reduce_mean(tf.square(slopes - 1.))
+D_loss = D_loss + 10.0 * gradient_penalty
 
 tf.summary.image('Original',A_true_flat)
 tf.summary.image('G_sample',G_sample)
 tf.summary.image('A_sample',A_sample)
 tf.summary.scalar('D_loss', D_loss)
-tf.summary.scalar('G_loss',G_loss)
-#tf.summary.scalar('A_encoded_loss',A_encoded_loss)
-tf.summary.scalar('A_decoded_loss',A_decoded_loss)
+tf.summary.scalar('G_loss',-tf.reduce_mean(D_fake_logits))
+tf.summary.scalar('A_loss',A_loss)
 tf.summary.scalar('D_z_loss',D_z_loss)
 merged = tf.summary.merge_all()
 
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
-D_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
-G_optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9)
 
+D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=theta_D, global_step=global_step)
+G_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=theta_G, global_step=global_step)
+H_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(H_loss,var_list=theta_H, global_step=global_step)
 
-D_grads_and_vars=D_optimizer.compute_gradients(D_loss, var_list=theta_D)
-G_grads_and_vars=G_optimizer.compute_gradients(G_loss, var_list=theta_G)
-
-
-D_solver = D_optimizer.apply_gradients(D_grads_and_vars, global_step=global_step)
-G_solver = G_optimizer.apply_gradients(G_grads_and_vars, global_step=global_step)
 #clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
 timestamp = str(int(time.time()))
 out_dir = os.path.abspath(os.path.join(os.path.curdir, "models/mnist" + timestamp))
@@ -240,6 +263,7 @@ with tf.Session() as sess:
         for _ in range(5):
             X_mb, Y_mb = mnist.train.next_batch(mb_size)
             _, D_loss_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb})
+            _, H_loss_curr = sess.run([H_solver, H_loss],feed_dict={X: X_mb})
         summary,_, G_loss_curr,A_loss_curr = sess.run([merged,G_solver, G_loss, A_loss],feed_dict={X: X_mb})
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
