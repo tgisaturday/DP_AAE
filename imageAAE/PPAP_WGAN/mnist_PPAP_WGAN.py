@@ -233,7 +233,7 @@ disc_fake_z = hacker(G_sample)
 A_true_flat = tf.reshape(X, [-1,28,28,1])
 
 global_step = tf.Variable(0, name="global_step", trainable=False)
-A_loss = tf.reduce_mean(tf.pow(A_true_flat - G_sample, 2))
+A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
 D_z_loss =tf.reduce_mean(tf.pow(disc_fake_z - gen_real_z, 2))
 D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
 G_loss = -tf.reduce_mean(D_fake_logits)- 10.0*D_z_loss + 10.0*A_loss
