@@ -15,7 +15,8 @@ rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
 mb_size = 256
 X_dim = 1024
-len_x_train = 604388
+#len_x_train = 604388
+len_x_train = 73257
 
 def next_batch(num, data, shuffle=True):
     '''
@@ -72,14 +73,14 @@ for i in range(x_.shape[3]):
     x_train.append(x_[:,:,:,i])
 x_train = np.asarray(x_train)
 
-extra_dict = sio.loadmat(extra_location)
-x_ex = np.asarray(extra_dict['X'])
-x_extra = []
-for i in range(x_ex.shape[3]):
-    x_extra.append(x_ex[:,:,:,i])
-x_extra = np.asarray(x_extra)
+#extra_dict = sio.loadmat(extra_location)
+#x_ex = np.asarray(extra_dict['X'])
+#x_extra = []
+#for i in range(x_ex.shape[3]):
+#    x_extra.append(x_ex[:,:,:,i])
+#x_extra = np.asarray(x_extra)
 
-x_train = np.concatenate((x_train, x_extra), axis=0)
+#x_train = np.concatenate((x_train, x_extra), axis=0)
 x_train = normalize(x_train)
 
 
@@ -271,46 +272,33 @@ def hacker(x):
 G_logits,G_sample,A_logits,A_sample, gen_real_z, gen_trans_z = autoencoder(X)
 D_real_logits = discriminator(X)
 D_fake_logits = discriminator(G_sample)
-A_fake_logits = discriminator(A_sample)
 disc_fake_z = hacker(G_sample)
 A_true_flat = tf.reshape(X, [-1,32,32,3])
+
+
 global_step = tf.Variable(0, name="global_step", trainable=False)
 A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
 G_z_loss = tf.reduce_mean(tf.pow(gen_trans_z - gen_real_z, 2))
 D_z_loss =tf.reduce_mean(tf.pow(disc_fake_z - gen_real_z, 2))
-#G_loss = -tf.reduce_mean(D_fake_logits) - 10.0*D_z_loss + 10.0*G_z_loss + 10.0*A_loss
-G_loss = -(0.5*tf.reduce_mean(D_fake_logits) + 0.5*tf.reduce_mean(A_fake_logits)) - 10.0*D_z_loss + 10.0*G_z_loss + 10.0*A_loss
+G_loss = -tf.reduce_mean(D_fake_logits) - 10.0*D_z_loss + 10.0*G_z_loss + 10.0*A_loss
 H_loss = 10.0*D_z_loss
 
-D_G_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
-# Gradient Penalty
-epsilon_G = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
-X_G_hat = A_true_flat + epsilon_G * (G_sample - A_true_flat)
-D_G_X_hat = discriminator(X_G_hat)
-grad_D_G_X_hat = tf.gradients(D_G_X_hat, [X_G_hat])[0]
-red_G_idx = list(range(1, X_G_hat.shape.ndims))
-slopes_G = tf.sqrt(tf.reduce_sum(tf.square(grad_D_G_X_hat), reduction_indices=red_G_idx))
-gradient_penalty_G = tf.reduce_mean(tf.square(slopes_G - 1.))
-D_G_loss = D_G_loss + 10.0 * gradient_penalty_G
+D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
 
-D_A_loss = tf.reduce_mean(A_fake_logits)-tf.reduce_mean(D_real_logits)
-# Gradient Penalty
-epsilon_A = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
-X_A_hat = A_true_flat + epsilon_A * (A_sample - A_true_flat)
-D_A_X_hat = discriminator(X_A_hat)
-grad_D_A_X_hat = tf.gradients(D_A_X_hat, [X_A_hat])[0]
-red_A_idx = list(range(1, X_A_hat.shape.ndims))
-slopes_A = tf.sqrt(tf.reduce_sum(tf.square(grad_D_A_X_hat), reduction_indices=red_A_idx))
-gradient_penalty_A = tf.reduce_mean(tf.square(slopes_A - 1.))
-D_A_loss = D_A_loss + 10.0 * gradient_penalty_A
+epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
+X_hat = A_true_flat + epsilon * (G_sample - A_true_flat)
+D_X_hat = discriminator(X_hat)
+grad_D_X_hat = tf.gradients(D_X_hat, [X_hat])[0]
+red_idx = list(range(1, X_hat.shape.ndims))
+slopes = tf.sqrt(tf.reduce_sum(tf.square(grad_D_X_hat), reduction_indices=red_idx))
+gradient_penalty = tf.reduce_mean(tf.square(slopes - 1.))
+D_loss = D_loss + 10.0 * gradient_penalty
 
-D_loss = 0.5*D_G_loss + 0.5*D_A_loss
-#D_loss = D_G_loss
 tf.summary.image('Original',A_true_flat)
 tf.summary.image('G_sample',G_sample)
 tf.summary.image('A_sample',A_sample)
-tf.summary.scalar('D_loss', D_loss)
-tf.summary.scalar('G_loss',(0.5*tf.reduce_mean(D_fake_logits) + 0.5*tf.reduce_mean(A_fake_logits)))
+tf.summary.scalar('D_loss', -D_loss)
+tf.summary.scalar('G_loss',-tf.reduce_mean(D_fake_logits))
 tf.summary.scalar('A_loss',A_loss)
 tf.summary.scalar('G_z_loss',G_z_loss)
 tf.summary.scalar('D_z_loss',D_z_loss)
@@ -333,7 +321,10 @@ if not os.path.exists(checkpoint_dir):
 
 if not os.path.exists('dc_out_svhn/'):
     os.makedirs('dc_out_svhn/')
-
+    
+if not os.path.exists('generated_svhn/'):
+    os.makedirs('generated_svhn/')  
+    
 with tf.Session() as sess:
     train_writer = tf.summary.FileWriter('graphs/'+'svhn',sess.graph)
     sess.run(tf.global_variables_initializer())
@@ -348,10 +339,10 @@ with tf.Session() as sess:
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
         
-        if it % 100 == 0:
+        if it % 100 == 0 and it != 0:
             print('Iter: {}; D_loss: {:.4}; G_loss: {:.4};  A_loss: {:.4};'.format(it,D_loss_curr, G_loss_curr, A_loss_curr))
 
-        if it % 1000 == 0: 
+        if it % 1000 == 0 and it != 0: 
             samples = sess.run(G_sample, feed_dict={X: X_mb})
             samples_flat = tf.reshape(samples,[-1,32,32,3]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
@@ -365,33 +356,24 @@ with tf.Session() as sess:
             plt.close(fig)            
             path = saver.save(sess, checkpoint_prefix, global_step=current_step)
             print('Saved model at {} at step {}'.format(path, current_step))
-''' 
-        if it% 100000 == 0:
+ 
+        if it% 100000 == 0 and it != 0:
             for ii in range(len_x_train//100):
-                xt_mb, y_mb = next_batch(100,x_train, y_train_one_hot.eval(),shuffle=False)
-                enc_noise = np.random.normal(0.0,1.0,[100,2,2,512]).astype(np.float32)
-                samples = sess.run(G_sample, feed_dict={X: xt_mb,N: enc_noise})
+                xt_mb = next_batch(mb_size, x_train, shuffle=False)
+                samples = sess.run(G_sample, feed_dict={X: xt_mb})
                 if ii == 0:
                     generated = samples
-                    labels = y_mb
                 else:
-                    np.append(generated,samples,axis=0)
-                    np.append(labels,y_mb, axis=0)
-                    
+                    np.append(generated,samples,axis=0)  
             np.save('./generated_svhn/generated_{}_image.npy'.format(str(it)), generated)
-            np.save('./generated_svhn/generated_{}_label.npy'.format(str(it)), labels)
 
 for iii in range(len_x_train//100):
-    xt_mb, y_mb = next_batch(100,x_train, y_train_one_hot.eval(),shuffle=False)
-    enc_noise = np.random.normal(0.0,1.0,[100,2,2,512]).astype(np.float32)
-    samples = sess.run(G_sample, feed_dict={X: xt_mb,N: enc_noise})
+    xt_mb = next_batch(mb_size, x_train, shuffle=False)
+    samples = sess.run(G_sample, feed_dict={X: xt_mb})
     if iii == 0:
         generated = samples
-        labels = y_mb
     else:
         np.append(generated,samples,axis=0)
-        np.append(labels,y_mb, axis=0)
-
 np.save('./generated_svhn/generated_{}_image.npy'.format(str(it)), generated)
-np.save('./generated_svhn/generated_{}_label.npy'.format(str(it)), labels)
-'''             
+
+       
