@@ -318,6 +318,7 @@ tf.summary.scalar('A_loss',A_loss)
 tf.summary.scalar('G_z_loss',G_z_loss)
 tf.summary.scalar('D_z_loss',D_z_loss)
 merged = tf.summary.merge_all()
+
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
 
 D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=theta_D, global_step=global_step)

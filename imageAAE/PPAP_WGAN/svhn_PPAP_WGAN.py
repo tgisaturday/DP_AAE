@@ -275,7 +275,6 @@ D_fake_logits = discriminator(G_sample)
 #A_fake_logits = discriminator(A_sample)
 disc_fake_z = hacker(G_sample)
 A_true_flat = tf.reshape(X, [-1,32,32,3])
-
 global_step = tf.Variable(0, name="global_step", trainable=False)
 A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
 G_z_loss = tf.reduce_mean(tf.pow(gen_trans_z - gen_real_z, 2))
@@ -317,6 +316,7 @@ tf.summary.scalar('A_loss',A_loss)
 tf.summary.scalar('G_z_loss',G_z_loss)
 tf.summary.scalar('D_z_loss',D_z_loss)
 merged = tf.summary.merge_all()
+
 num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
 
 D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=theta_D, global_step=global_step)
