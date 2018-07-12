@@ -17,7 +17,7 @@ import time
 initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
-mb_size = 128
+mb_size = 64
 X_dim = 4096
 
 
@@ -185,11 +185,11 @@ def autoencoder(x):
 
     return g_logits, g, a_logits, a, z_value, z_transpose
 
-W1 = tf.Variable(xavier_init([5,5,3,64]))
-W2 = tf.Variable(xavier_init([5,5,64,128]))
-W3 = tf.Variable(xavier_init([5,5,128,256]))
-W4 = tf.Variable(xavier_init([5,5,256,512]))
-W5 = tf.Variable(xavier_init([4*4*512, 1]))
+W1 = tf.Variable(xavier_init([5,5,3,128]))
+W2 = tf.Variable(xavier_init([5,5,128,256]))
+W3 = tf.Variable(xavier_init([5,5,256,512]))
+W4 = tf.Variable(xavier_init([5,5,512,1024]))
+W5 = tf.Variable(xavier_init([4*4*1024, 1]))
 b5 = tf.Variable(tf.zeros(shape=[1]))
 
 theta_D = [W1,W2,W3,W4,W5,b5]
