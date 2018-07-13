@@ -76,7 +76,7 @@ initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
 X = tf.placeholder(tf.float32, shape=[None, 32, 32, 3])
-N = tf.placeholder(tf.float32, shape=[None, 100])
+N = tf.placeholder(tf.float32, shape=[None, 128])
 (x_train, y_train), (x_test, y_test) = load_data()
 #x_train = np.concatenate((x_train, x_test), axis=0)
 #y_train = np.concatenate((y_train, y_test), axis=0)
@@ -125,13 +125,13 @@ def autoencoder(x):
             current_input = output
         encoder.reverse()
         shapes_enc.reverse()
-        W_fc1 = tf.Variable(tf.random_normal([4*4*512, 100]))
+        W_fc1 = tf.Variable(tf.random_normal([4*4*512, 128]))
         theta_G.append(W_fc1)
         z = tf.matmul(tf.layers.flatten(current_input),W_fc1)
         z =  tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
         z = tf.nn.tanh(z)
         z_value = z
-        W_fc2 = tf.Variable(tf.random_normal([100, 4*4*512]))
+        W_fc2 = tf.Variable(tf.random_normal([128, 4*4*512]))
         theta_G.append(W_fc2)
         z_ = tf.matmul(z,W_fc2)
         z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
@@ -236,7 +236,7 @@ def discriminator(x):
 W1_H = tf.Variable(xavier_init([5,5,3,128]))
 W2_H = tf.Variable(xavier_init([5,5,128,256]))
 W3_H = tf.Variable(xavier_init([5,5,256,512]))
-W_fc = tf.Variable(xavier_init([4*4*512, 100]))
+W_fc = tf.Variable(xavier_init([4*4*512, 128]))
 theta_H = [W1_H,W2_H,W3_H,W_fc]
 
 
