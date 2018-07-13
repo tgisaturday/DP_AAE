@@ -338,19 +338,19 @@ with tf.Session() as sess:
         current_step = tf.train.global_step(sess, global_step)
         train_writer.add_summary(summary,current_step)
         
-        if it % 10 == 0 and it != 0:
+        if it % 100 == 0 and it != 0:
             print('Iter: {}; D_loss: {:.4}; G_loss: {:.4};  A_loss: {:.4};'.format(it,D_loss_curr, G_loss_curr, A_loss_curr))
 
         if it % 1000 == 0 and it != 0: 
             samples = sess.run(G_sample, feed_dict={X: X_mb})
             samples_flat = tf.reshape(samples,[-1,128,128,3]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
-            plt.savefig('dc_out_celebA/{}_G.png'.format(str(i).zfill(3)), bbox_inches='tight')
+            plt.savefig('dc_out_celebA128/{}_G.png'.format(str(i).zfill(3)), bbox_inches='tight')
             plt.close(fig)
             samples = sess.run(A_sample, feed_dict={X: X_mb})
             samples_flat = tf.reshape(samples,[-1,128,128,3]).eval()         
             fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
-            plt.savefig('dc_out_celebA/{}_A.png'.format(str(i).zfill(3)), bbox_inches='tight')
+            plt.savefig('dc_out_celebA128/{}_A.png'.format(str(i).zfill(3)), bbox_inches='tight')
             i += 1
             plt.close(fig)            
             path = saver.save(sess, checkpoint_prefix, global_step=current_step)
@@ -364,7 +364,7 @@ with tf.Session() as sess:
                     generated = samples
                 else:
                     np.append(generated,samples,axis=0)  
-            np.save('./generated_celebA/generated_{}_image.npy'.format(str(it)), generated)
+            np.save('./generated_celebA128/generated_{}_image.npy'.format(str(it)), generated)
 
 for iii in range(len_x_train//100):
     xt_mb = next_batch(mb_size, x_train, shuffle=False)
@@ -373,4 +373,4 @@ for iii in range(len_x_train//100):
         generated = samples
     else:
         np.append(generated,samples,axis=0)
-np.save('./generated_celebA/generated_{}_image.npy'.format(str(it)), generated)            
+np.save('./generated_celebA128/generated_{}_image.npy'.format(str(it)), generated)            
