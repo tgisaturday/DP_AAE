@@ -20,7 +20,7 @@ len_x_train = 60000
 mnist = input_data.read_data_sets('../data/MNIST_data', one_hot=True)
 
 def plot(samples):
-    fig = plt.figure(figsize=(4, 4))
+    fig = plt.figure(figsize=(32,5))
     gs = gridspec.GridSpec(5,32)
     gs.update(wspace=0.05, hspace=0.05)
         
@@ -211,8 +211,8 @@ with graph.as_default():
             saver = tf.train.Saver(tf.global_variables())
         if not os.path.exists('dc_out_mnist/'):
             os.makedirs('dc_out_mnist/')
-        if not os.path.exists('generated_mnist/'):
-            os.makedirs('generated_mnist/')            
+        #if not os.path.exists('generated_mnist/'):
+        #    os.makedirs('generated_mnist/')            
 
         train_writer = tf.summary.FileWriter('graphs/'+'mnist',sess.graph)
         sess.run(tf.global_variables_initializer())
