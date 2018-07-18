@@ -21,7 +21,7 @@ mnist = input_data.read_data_sets('../data/MNIST_data', one_hot=True)
 
 def plot(samples):
     fig = plt.figure(figsize=(4, 4))
-    gs = gridspec.GridSpec(8, 8)
+    gs = gridspec.GridSpec(5,32)
     gs.update(wspace=0.05, hspace=0.05)
         
     for i, sample in enumerate(samples):
@@ -37,33 +37,13 @@ def plot(samples):
 initializer = tf.contrib.layers.xavier_initializer()
 rand_uniform = tf.random_uniform_initializer(-1,1,seed=2)
 
-
-
-X = tf.placeholder(tf.float32, shape=[None, X_dim])
-
-theta_G = []
-
 def xavier_init(size):
     in_dim = size[0]
     xavier_stddev = 1. / tf.sqrt(in_dim / 2.)
     return tf.random_normal(shape=size, stddev=xavier_stddev)
 
-def autoencoder(x):
-    input_shape=[None, 28, 28, 1]
-    n_filters=[1, 128, 256, 512]
-    filter_sizes=[5, 5, 5, 5]
-    
-    if len(x.get_shape()) == 2:
-        x_dim = np.sqrt(x.get_shape().as_list()[1])
-        if x_dim != int(x_dim):
-            raise ValueError('Unsupported input dimensions')
-        x_dim = int(x_dim)
-        x_tensor = tf.reshape(x, [-1, x_dim, x_dim, 1])
-    elif len(x.get_shape()) == 4:
-        x_tensor = x
-    else:
-        raise ValueError('Unsupported input dimensions')
-    current_input = x_tensor
+def autoencoder(input_shape, n_filters, filter_sizes, x, theta_G):
+    current_input = x
     
     encoder = []
     decoder = []
@@ -82,18 +62,6 @@ def autoencoder(x):
             current_input = output
         encoder.reverse()
         shapes_enc.reverse()
-        W_fc1 = tf.Variable(tf.random_normal([4*4*512, 128]))
-        theta_G.append(W_fc1)
-        z = tf.matmul(tf.layers.flatten(current_input),W_fc1)
-        z =  tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-        z = tf.nn.tanh(z)
-        z_value = z
-        W_fc2 = tf.Variable(tf.random_normal([128, 4*4*512]))
-        theta_G.append(W_fc2)
-        z_ = tf.matmul(z,W_fc2)
-        z_ = tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-        z_ = tf.nn.relu(z_)
-        current_input = tf.reshape(z_, [-1, 4, 4, 512])
         for layer_i, shape in enumerate(shapes_enc):
             W_enc = encoder[layer_i]
             W = tf.Variable(xavier_init(W_enc.get_shape().as_list()))
@@ -110,7 +78,6 @@ def autoencoder(x):
                 output = tf.nn.relu(deconv)
             current_input = output
         g = current_input
-        g_logits = deconv
         
         encoder.reverse()
         shapes_enc.reverse()
@@ -125,15 +92,7 @@ def autoencoder(x):
             output = tf.nn.leaky_relu(conv)
             current_input = output
         encoder.reverse()
-        shapes_enc.reverse()
-        z = tf.matmul(tf.layers.flatten(current_input), tf.transpose(W_fc2))
-        z = tf.contrib.layers.batch_norm(z,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-        z = tf.nn.tanh(z)
-        z_transpose = z
-        z_ = tf.matmul(z, tf.transpose(W_fc1))
-        z_ =  tf.contrib.layers.batch_norm(z_,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-        z_ = tf.nn.relu(z_)
-        current_input = tf.reshape(z_, [-1, 4, 4,512])        
+        shapes_enc.reverse()      
         for layer_i, shape in enumerate(shapes_enc):
             W_enc = encoder[layer_i]
             deconv = tf.nn.conv2d_transpose(current_input, W_enc,
@@ -145,187 +104,171 @@ def autoencoder(x):
                 deconv = tf.contrib.layers.batch_norm(deconv,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
                 output = tf.nn.relu(deconv)
             current_input = output
-        a = current_input
-        a_logits = deconv        
+        a = current_input      
 
-    return g_logits, g, a_logits, a, z_value, z_transpose
+    return g, a
 
-W1 = tf.Variable(xavier_init([5,5,1,64]))
-W2 = tf.Variable(xavier_init([5,5,64,128]))
-W3 = tf.Variable(xavier_init([5,5,128,256]))
-W4 = tf.Variable(xavier_init([4*4*256, 1]))
-b4 = tf.Variable(tf.zeros(shape=[1]))
-
-theta_D = [W1,W2,W3,W4,b4]
-
-
-def discriminator(x):
-    if len(x.get_shape()) == 2:
-        x_dim = np.sqrt(x.get_shape().as_list()[1])
-        if x_dim != int(x_dim):
-            raise ValueError('Unsupported input dimensions')
-        x_dim = int(x_dim)
-        x_tensor = tf.reshape(x, [-1, 28, 28, 1])
-    elif len(x.get_shape()) == 4:
-        x_tensor = x
-    else:
-        raise ValueError('Unsupported input dimensions')   
+def discriminator(x,var_D):
+    current_input = x
     with tf.name_scope("Discriminator"):
-        conv1 = tf.nn.conv2d(x_tensor, W1, strides=[1,2,2,1],padding='SAME')
-        conv1 = tf.contrib.layers.layer_norm(conv1)
-        h1 = tf.nn.leaky_relu(conv1)
-    
-        conv2 = tf.nn.conv2d(h1, W2, strides=[1,2,2,1],padding='SAME')
-        conv2 = tf.contrib.layers.layer_norm(conv2)
-        h2 = tf.nn.leaky_relu(conv2)
-    
-
-        conv3 = tf.nn.conv2d(h2, W3, strides=[1,2,2,1],padding='SAME')
-        conv3 = tf.contrib.layers.layer_norm(conv3)
-        h3 = tf.nn.leaky_relu(conv3)
-
-        h4 = tf.layers.flatten(h3)
-     
-        d = tf.nn.xw_plus_b(h4, W4, b4)
-        
+        for i in range(len(var_D)-2):
+            conv = tf.nn.conv2d(current_input, var_D[i], strides=[1,2,2,1],padding='SAME')
+            conv = tf.contrib.layers.layer_norm(conv)
+            current_input = tf.nn.leaky_relu(conv)            
+        h = tf.layers.flatten(current_input)     
+        d = tf.nn.xw_plus_b(h, var_D[-2], var_D[-1])        
     return d
-
-W1_H = tf.Variable(xavier_init([5,5,1,128]))
-W2_H = tf.Variable(xavier_init([5,5,128,256]))
-W3_H = tf.Variable(xavier_init([5,5,256,512]))
-W_fc = tf.Variable(xavier_init([4*4*512, 128]))
-theta_H = [W1_H,W2_H,W3_H,W_fc]
-
-
-def hacker(x):
-    if len(x.get_shape()) == 2:
-        x_dim = np.sqrt(x.get_shape().as_list()[1])
-        if x_dim != int(x_dim):
-            raise ValueError('Unsupported input dimensions')
-        x_dim = int(x_dim)
-        x_tensor = tf.reshape(x, [-1, 28, 28, 1])
-    elif len(x.get_shape()) == 4:
-        x_tensor = x
-    else:
-        raise ValueError('Unsupported input dimensions')   
-    with tf.name_scope("Hacker"):
-        conv1 = tf.nn.conv2d(x_tensor, W1_H, strides=[1,2,2,1],padding='SAME')
-        conv1 = tf.contrib.layers.batch_norm(conv1,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-        h1 = tf.nn.leaky_relu(conv1)
+def gradient_penalty(G_sample, A_true_flat, var_D):
+    epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
+    X_hat = A_true_flat + epsilon * (G_sample - A_true_flat)
+    D_X_hat = discriminator(X_hat,var_D)
+    grad_D_X_hat = tf.gradients(D_X_hat, [X_hat])[0]
+    red_idx = list(range(1, X_hat.shape.ndims))
+    slopes = tf.sqrt(tf.reduce_sum(tf.square(grad_D_X_hat), reduction_indices=red_idx))
+    gradient_penalty = tf.reduce_mean(tf.square(slopes - 1.))
+    return gradient_penalty
     
-        conv2 = tf.nn.conv2d(h1, W2_H, strides=[1,2,2,1],padding='SAME')
-        conv2 = tf.contrib.layers.batch_norm(conv2,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-        h2 = tf.nn.leaky_relu(conv2)
+graph = tf.Graph()
+with graph.as_default():
+    session_conf = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
+    sess = tf.Session(config=session_conf)
 
-        conv3 = tf.nn.conv2d(h2, W3_H, strides=[1,2,2,1],padding='SAME')
-        conv3 = tf.contrib.layers.batch_norm(conv3,updates_collections=None,decay=0.9, zero_debias_moving_mean=True,is_training=True)
-        h3 = tf.nn.leaky_relu(conv3)
+    with sess.as_default():
+        #input placeholder
+        X = tf.placeholder(tf.float32, shape=[None, X_dim])
+        A_true_flat = tf.reshape(X, [-1,28,28,1]) 
         
-        z_value = tf.matmul(tf.layers.flatten(h3),W_fc)
-        z_value = tf.nn.tanh(z_value)
-    return z_value
-
-G_logits,G_sample,A_logits,A_sample, gen_real_z, gen_trans_z = autoencoder(X)
-D_real_logits = discriminator(X)
-D_fake_logits = discriminator(G_sample)
-disc_fake_z = hacker(G_sample)
-A_true_flat = tf.reshape(X, [-1,28,28,1])
-
-global_step = tf.Variable(0, name="global_step", trainable=False)
-A_loss = tf.reduce_mean(tf.pow(A_true_flat - A_sample, 2))
-G_z_loss = tf.reduce_mean(tf.pow(gen_trans_z - gen_real_z, 2))
-D_z_loss =tf.reduce_mean(tf.pow(disc_fake_z - gen_real_z, 2))
-G_loss = -tf.reduce_mean(D_fake_logits) - 10.0*D_z_loss + 10.0*G_z_loss + 10.0*A_loss
-H_loss = 10.0*D_z_loss
-
-D_loss = tf.reduce_mean(D_fake_logits)-tf.reduce_mean(D_real_logits)
-
-epsilon = tf.random_uniform(shape=[mb_size, 1, 1, 1], minval=0.,maxval=1.)
-X_hat = A_true_flat + epsilon * (G_sample - A_true_flat)
-D_X_hat = discriminator(X_hat)
-grad_D_X_hat = tf.gradients(D_X_hat, [X_hat])[0]
-red_idx = list(range(1, X_hat.shape.ndims))
-slopes = tf.sqrt(tf.reduce_sum(tf.square(grad_D_X_hat), reduction_indices=red_idx))
-gradient_penalty = tf.reduce_mean(tf.square(slopes - 1.))
-D_loss = D_loss + 10.0 * gradient_penalty
-
-tf.summary.image('Original',A_true_flat)
-tf.summary.image('G_sample',G_sample)
-tf.summary.image('A_sample',A_sample)
-tf.summary.scalar('D_loss', -D_loss)
-tf.summary.scalar('G_loss',-tf.reduce_mean(D_fake_logits))
-tf.summary.scalar('A_loss',A_loss)
-tf.summary.scalar('G_z_loss',G_z_loss)
-tf.summary.scalar('D_z_loss',D_z_loss)
-merged = tf.summary.merge_all()
-
-num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
-
-D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=theta_D, global_step=global_step)
-G_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=theta_G, global_step=global_step)
-H_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(H_loss,var_list=theta_H, global_step=global_step)
-
-#clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D] 
-timestamp = str(int(time.time()))
-out_dir = os.path.abspath(os.path.join(os.path.curdir, "models/mnist" + timestamp))
-checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
-checkpoint_prefix = os.path.join(checkpoint_dir, "model")
-if not os.path.exists('models/'):
-    os.makedirs('models/')
-if not os.path.exists(checkpoint_dir):
-    os.makedirs(checkpoint_dir)
-    saver = tf.train.Saver(tf.global_variables())
-if not os.path.exists('dc_out_mnist/'):
-    os.makedirs('dc_out_mnist/')
-if not os.path.exists('generated_mnist/'):
-    os.makedirs('generated_mnist/')            
-with tf.Session() as sess:
-    train_writer = tf.summary.FileWriter('graphs/'+'mnist',sess.graph)
-    sess.run(tf.global_variables_initializer())
-    i = 0       
-    for it in range(1000000000):
-        for _ in range(5):
-            X_mb, Y_mb = mnist.train.next_batch(mb_size)
-            _, D_loss_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb})
-            _, H_loss_curr = sess.run([H_solver, H_loss],feed_dict={X: X_mb})
-        summary,_, G_loss_curr,A_loss_curr = sess.run([merged,G_solver, G_loss, A_loss],feed_dict={X: X_mb})
-        current_step = tf.train.global_step(sess, global_step)
-        train_writer.add_summary(summary,current_step)
+        #autoencoder variables
+        var_G = []
+        var_H = []
+        input_shape=[None, 28, 28, 1]
+        n_filters=[1, 128, 256, 512]
+        filter_sizes=[5, 5, 5, 5]
         
-        if it % 100 == 0 and it != 0:
-            print('Iter: {}; D_loss: {:.4}; G_loss: {:.4};  A_loss: {:.4};'.format(it,D_loss_curr, G_loss_curr, A_loss_curr))
+        #discriminator variables
+        W1 = tf.Variable(xavier_init([5,5,1,128]))
+        W2 = tf.Variable(xavier_init([5,5,128,256]))
+        W3 = tf.Variable(xavier_init([5,5,256,512]))
+        W4 = tf.Variable(xavier_init([4*4*512, 1]))
+        b4 = tf.Variable(tf.zeros(shape=[1]))
+        var_D = [W1,W2,W3,W4,b4]        
+        
+        G_G_sample,A_G_sample = autoencoder(input_shape, n_filters, filter_sizes, A_true_flat, var_G)
+        G_H_sample, A_H_sample = autoencoder(input_shape, n_filters, filter_sizes, G_G_sample, var_H) 
 
-        if it % 1000 == 0 and it != 0: 
-            samples = sess.run(G_sample, feed_dict={X: X_mb})
-            samples_flat = tf.reshape(samples,[-1,784]).eval()         
-            fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
-            plt.savefig('dc_out_mnist/{}_G.png'.format(str(i).zfill(3)), bbox_inches='tight')
-            plt.close(fig)
-            samples = sess.run(A_sample, feed_dict={X: X_mb})
-            samples_flat = tf.reshape(samples,[-1,784]).eval()         
-            fig = plot(np.append(X_mb[:32], samples_flat[:32], axis=0))
-            plt.savefig('dc_out_mnist/{}_A.png'.format(str(i).zfill(3)), bbox_inches='tight')
-            i += 1
-            plt.close(fig)
-            path = saver.save(sess, checkpoint_prefix, global_step=current_step)
-            print('Saved model at {} at step {}'.format(path, current_step))
+        D_real_logits = discriminator(A_true_flat, var_D)
+        D_G_G_fake_logits = discriminator(G_G_sample, var_D)
+        D_G_H_fake_logits = discriminator(G_H_sample, var_D)
+        D_A_G_fake_logits = discriminator(A_G_sample, var_D)
+        D_H_G_fake_logits = discriminator(A_H_sample, var_D)
 
-        if it% 100000 == 0 and it != 0:
-            for ii in range(len_x_train//100):
-                xt_mb, y_mb = mnist.train.next_batch(100,shuffle=False)
-                samples = sess.run(G_sample, feed_dict={X: xt_mb})
-                if ii == 0:
-                    generated = samples
-                else:
-                    np.append(generated,samples,axis=0)
-            np.save('./generated_mnist/generated_{}_image.npy'.format(str(it)), generated)
+        global_step = tf.Variable(0, name="global_step", trainable=False)
+        A_G_loss = tf.reduce_mean(tf.pow(A_true_flat - A_G_sample, 2))
+        A_H_loss = tf.reduce_mean(tf.pow(G_G_sample - A_H_sample, 2))
 
-for iii in range(len_x_train//100):
-    xt_mb, y_mb = mnist.train.next_batch(100,shuffle=False)
-    samples = sess.run(G_sample, feed_dict={X: xt_mb})
-    if iii == 0:
-        generated = samples
-    else:
-        np.append(generated,samples,axis=0)
-np.save('./generated_mnist/generated_{}_image.npy'.format(str(it)), generated)
-            
+        G_loss = -tf.reduce_mean(D_G_G_fake_logits) - 10.0*tf.reduce_mean(tf.pow(A_true_flat - G_H_sample, 2)) + 10.0*A_G_loss
+        H_loss = -tf.reduce_mean(D_G_H_fake_logits) + 10.0*tf.reduce_mean(tf.pow(A_true_flat - G_H_sample, 2)) + 10.0*A_G_loss
+        
+        D_fake_logits = 0.25*(tf.reduce_mean(D_G_G_fake_logits)+
+                              tf.reduce_mean(D_G_H_fake_logits)+
+                              tf.reduce_mean(D_A_G_fake_logits)+
+                              tf.reduce_mean(D_H_G_fake_logits))
+        
+        gp = 0.25*(gradient_penalty(G_G_sample,A_true_flat, var_D)+
+                   gradient_penalty(G_H_sample,A_true_flat, var_D)+
+                   gradient_penalty(A_G_sample,A_true_flat, var_D)+
+                   gradient_penalty(A_H_sample,A_true_flat, var_D))  
+        
+        D_loss = D_fake_logits - tf.reduce_mean(D_real_logits)+ 10.0*gp
+
+        tf.summary.image('Original',A_true_flat)
+        tf.summary.image('G_encoded',G_G_sample)
+        tf.summary.image('G_reconstructed',A_G_sample)
+        tf.summary.image('H_decoded',G_H_sample)
+        tf.summary.image('H_reconstructed',A_H_sample)
+        tf.summary.scalar('D_loss', -D_loss)
+        tf.summary.scalar('G_loss',tf.reduce_mean(D_G_G_fake_logits))
+        tf.summary.scalar('H_loss',tf.reduce_mean(D_G_H_fake_logits))
+        tf.summary.scalar('decoder_loss',tf.reduce_mean(tf.pow(A_true_flat - G_H_sample, 2)))
+        tf.summary.scalar('A_G_loss',A_G_loss)
+        tf.summary.scalar('A_H_loss',A_H_loss)
+        merged = tf.summary.merge_all()
+
+        num_batches_per_epoch = int((len_x_train-1)/mb_size) + 1
+
+        D_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(D_loss,var_list=var_D, global_step=global_step)
+        G_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(G_loss,var_list=var_G, global_step=global_step)
+        H_solver = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.5, beta2=0.9).minimize(H_loss,var_list=var_H, global_step=global_step)
+
+        timestamp = str(int(time.time()))
+        out_dir = os.path.abspath(os.path.join(os.path.curdir, "models/mnist" + timestamp))
+        checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
+        checkpoint_prefix = os.path.join(checkpoint_dir, "model")
+        if not os.path.exists('models/'):
+            os.makedirs('models/')
+        if not os.path.exists(checkpoint_dir):
+            os.makedirs(checkpoint_dir)
+            saver = tf.train.Saver(tf.global_variables())
+        if not os.path.exists('dc_out_mnist/'):
+            os.makedirs('dc_out_mnist/')
+        if not os.path.exists('generated_mnist/'):
+            os.makedirs('generated_mnist/')            
+
+        train_writer = tf.summary.FileWriter('graphs/'+'mnist',sess.graph)
+        sess.run(tf.global_variables_initializer())
+        i = 0       
+        for it in range(1000000000):
+            for _ in range(5):
+                X_mb, Y_mb = mnist.train.next_batch(mb_size)
+                _, D_loss_curr = sess.run([D_solver, D_loss],feed_dict={X: X_mb})
+                _, H_loss_curr = sess.run([H_solver, H_loss],feed_dict={X: X_mb})
+            summary, _, G_loss_curr= sess.run([merged,G_solver, G_loss],feed_dict={X: X_mb})
+            current_step = tf.train.global_step(sess, global_step)
+            train_writer.add_summary(summary,current_step)
+        
+            if it % 100 == 0:
+                print('Iter: {}; D_loss: {:.4}; G_loss: {:.4}; H_loss: {:.4};'.format(it,D_loss_curr, G_loss_curr, H_loss_curr))
+
+            if it % 1000 == 0: 
+                samples = sess.run(G_G_sample, feed_dict={X: X_mb})
+                samples_flat = tf.reshape(samples,[-1,784]).eval()
+                img_set = np.append(X_mb[:32], samples_flat[:32], axis=0)
+                
+                samples = sess.run(A_G_sample, feed_dict={X: X_mb})
+                samples_flat = tf.reshape(samples,[-1,784]).eval() 
+                img_set = np.append(img_set, samples_flat[:32], axis=0) 
+                
+                samples = sess.run(G_H_sample, feed_dict={X: X_mb})
+                samples_flat = tf.reshape(samples,[-1,784]).eval() 
+                img_set = np.append(img_set, samples_flat[:32], axis=0)
+                
+                samples = sess.run(A_H_sample, feed_dict={X: X_mb})
+                samples_flat = tf.reshape(samples,[-1,784]).eval() 
+                img_set = np.append(img_set, samples_flat[:32], axis=0)
+                
+                fig = plot(img_set)
+                plt.savefig('dc_out_mnist/{}.png'.format(str(i).zfill(3)), bbox_inches='tight')
+                plt.close(fig)
+                i += 1
+                path = saver.save(sess, checkpoint_prefix, global_step=current_step)
+                print('Saved model at {} at step {}'.format(path, current_step))
+'''
+            if it% 100000 == 0 and it != 0:
+                for ii in range(len_x_train//100):
+                    xt_mb, y_mb = mnist.train.next_batch(100,shuffle=False)
+                    samples = sess.run(G_sample, feed_dict={X: xt_mb})
+                    if ii == 0:
+                        generated = samples
+                    else:
+                        np.append(generated,samples,axis=0)
+                np.save('./generated_mnist/generated_{}_image.npy'.format(str(it)), generated)
+
+    for iii in range(len_x_train//100):
+        xt_mb, y_mb = mnist.train.next_batch(100,shuffle=False)
+        samples = sess.run(G_sample, feed_dict={X: xt_mb})
+        if iii == 0:
+            generated = samples
+        else:
+            np.append(generated,samples,axis=0)
+    np.save('./generated_mnist/generated_{}_image.npy'.format(str(it)), generated)
+'''            
